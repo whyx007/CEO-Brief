@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-04-22T11:10:38+08:00",
+  "meta": {
+    "mode": "free-news-pipeline",
+    "newsCount": 1,
+    "generatedBy": "ceo-brief-fastapi-service",
+    "strictMatchCount": 0,
+    "policyMatchCount": 0,
+    "competitorMatchCount": 0,
+    "strictMode": true,
+    "pipelineMode": "stable",
+    "googleEnabled": false,
+    "llmSummaryEnabled": false,
+    "host": "Aimer-Cat"
+  },
+  "macroEconomicNewsCount": 1,
+  "industryFocusNewsCount": 0,
+  "policyNewsCount": 0,
+  "competitorNewsCount": 0,
+  "rankedItemsCount": 0,
+  "enrichedItemsCount": 0,
+  "macroItemsCount": 1,
+  "industryFocusItemsCount": 0,
+  "policyRankedCount": 0,
+  "competitorRankedCount": 0,
+  "firstRankedItem": null,
+  "firstMacroItem": {
+    "id": "macro_news_001",
+    "title": "押注AAV体内CAR-T，「西湖云谷智药」即将启动IIT研究",
+    "source": "36Kr",
+    "summary": "文｜胡香赟 编辑｜海若镜 近期，万亿市值“药王”礼来斥资24亿美元（超160亿人民币）完成的一笔收购，将医药行业的目光重新吸引回细胞与基因治疗（CGT）领域。 被收购企业Orna Therapeutics主要从事环状RNA研究，核心药物是一款靶向CD19的体内CAR-T，即将步入临床试验阶段。相较动辄百万元一针的传统CAR-T，体内CAR-T是一种有潜力实现“物美价廉”的细胞疗法。有从业者认为，如果体内CAR-T未来能成药，且实现大规模生产，价格可以做到和普通抗体产品类似，有望解决困扰传统CAR-T已久的商业化难题。 2025年，百时美施贵宝、阿斯利康、艾伯维和吉利德4家跨国药企就已相继出手并购海外体内CAR-T初创公司，涉及总金额近50亿美元。如今，礼来的入局，进一步为该赛道的发展前景注入确定性。 反映到国内市场，据36氪不完全统计，仅今年前4个月，国内体内CAR-T概念企业在一级市场的融资金额就接近20亿人民币。 “ 并购而非BD，说明大型药企已经把体内CAR-T视为下一代治疗平台技术 ，也推动整个领域的估值逻辑从单品种向平台转变。”西湖云谷智药创始人马丽佳认为。 马丽佳曾任西湖大",
+    "url": "https://36kr.com/p/3774632804057607?f=rss",
+    "publishedAt": "2026-04-22 08:30:00  +0800"
+  },
+  "firstIndustryFocusItem": null
+}
