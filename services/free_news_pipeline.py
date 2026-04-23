@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import os
+
 from services.filters import filter_business_items, filter_policy_items
 from services.jina_client import JinaReaderClient
 from services.llm_client import DeepSeekClient
 from services.policy_sources import POLICY_RSS_SOURCES
+from services.rsshub_sources import build_rsshub_sources
 from services.space_sources import SPACE_QUERY_HINTS, SPACE_RSS_SOURCES
 from services.relevance import rank_news_items
 from services.rss_client import DEFAULT_RSS_SOURCES, RSSClient
@@ -64,7 +67,9 @@ class FreeNewsPipeline:
     def collect_rss(self, limit_per_feed: int = 5, extra_sources: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         items: list[dict[str, Any]] = []
         seen_urls: set[str] = set()
-        sources = [*DEFAULT_RSS_SOURCES, *(extra_sources or [])]
+        use_rsshub = os.getenv('CEO_BRIEF_ENABLE_RSSHUB', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
+        rsshub_sources = build_rsshub_sources() if use_rsshub else []
+        sources = [*DEFAULT_RSS_SOURCES, *rsshub_sources, *(extra_sources or [])]
         for source in sources:
             for item in self.rss.parse_feed(source['url'], source_name=source['name'], limit=limit_per_feed):
                 url = item.get('url') or ''

@@ -345,6 +345,8 @@ def free_sources_status() -> dict[str, Any]:
         'jinaEnabled': free_news_pipeline.jina.enabled,
         'deepseekEnabled': free_news_pipeline.llm.enabled,
         'searxngEnabled': news_pipeline.searxng.enabled,
+        'rsshubEnabled': env_flag('CEO_BRIEF_ENABLE_RSSHUB', default=True),
+        'rsshubBaseUrl': os.getenv('RSSHUB_BASE_URL', 'https://rss.whyx.site:8443').rstrip('/'),
     }
 
 
@@ -483,6 +485,8 @@ def generate_free_brief() -> dict[str, Any]:
         generated['meta']['pipelineMode'] = pipeline_mode
         generated['meta']['googleEnabled'] = enable_google
         generated['meta']['llmSummaryEnabled'] = enable_llm_summary
+        generated['meta']['rsshubEnabled'] = env_flag('CEO_BRIEF_ENABLE_RSSHUB', default=True)
+        generated['meta']['rsshubBaseUrl'] = os.getenv('RSSHUB_BASE_URL', 'https://rss.whyx.site:8443').rstrip('/')
         generated['meta']['host'] = socket.gethostname()
 
         write_json(TODAY_FILE, generated)
@@ -493,6 +497,7 @@ def generate_free_brief() -> dict[str, Any]:
         write_json(DEBUG_SNAPSHOT_FILE, {
             'generatedAt': generated.get('generatedAt'),
             'meta': generated.get('meta', {}),
+            'rssSources': rss_payload.get('sources', []),
             'macroEconomicNewsCount': len(macro_news_generated),
             'industryFocusNewsCount': len(industry_focus_generated),
             'policyNewsCount': len(generated.get('policyNews', [])),
