@@ -228,6 +228,13 @@ def latest_brief() -> dict[str, Any]:
     }
 
 
+@app.get('/api/ceo-brief/latest-debug-snapshot')
+def latest_debug_snapshot() -> dict[str, Any]:
+    if not DEBUG_SNAPSHOT_FILE.exists():
+        raise HTTPException(status_code=404, detail='latest_debug_snapshot_not_found')
+    return read_json(DEBUG_SNAPSHOT_FILE)
+
+
 @app.get('/api/ceo-brief/settings/targets')
 def get_targets() -> dict[str, Any]:
     return read_json(TARGET_SETTINGS_FILE)
@@ -344,7 +351,7 @@ def free_sources_status() -> dict[str, Any]:
         'googleNewsRss': True,
         'jinaEnabled': free_news_pipeline.jina.enabled,
         'deepseekEnabled': free_news_pipeline.llm.enabled,
-        'searxngEnabled': news_pipeline.searxng.enabled,
+        'searxngEnabled': free_news_pipeline.searxng.enabled,
         'rsshubEnabled': env_flag('CEO_BRIEF_ENABLE_RSSHUB', default=True),
         'rsshubBaseUrl': os.getenv('RSSHUB_BASE_URL', 'https://rss.whyx.site:8443').rstrip('/'),
     }
@@ -426,13 +433,24 @@ def generate_free_brief() -> dict[str, Any]:
             limit_per_feed=1 if pipeline_mode == 'stable' else 2,
             extra_sources=SPACE_RSS_SOURCES if use_space_sources else None,
         )
-        merged_items = rss_payload['items']
 
         if enable_google:
             google_payload = free_news_pipeline.collect_google_news(targets, limit_per_query=1)
-            merged_items = merged_items + google_payload['items']
         else:
-            google_payload = {'queries': [], 'items': []}
+            google_payload = {'queries': [], 'queryStats': [], 'items': []}
+
+        enable_searxng = free_news_pipeline.searxng.enabled and pipeline_mode != 'stable'
+        if enable_searxng:
+            searxng_payload = free_news_pipeline.collect_searxng_news(targets, limit_per_query=2)
+        else:
+            searxng_payload = {'queries': [], 'queryStats': [], 'items': [], 'enabled': False}
+
+        merged_payload = free_news_pipeline.merge_and_dedup(
+            rss_payload['items'],
+            google_payload['items'],
+            searxng_payload['items'],
+        )
+        merged_items = merged_payload['items']
 
         if enable_policy_google:
             policy_payload = free_news_pipeline.collect_policy_news(targets, limit_per_query=1)
@@ -482,11 +500,17 @@ def generate_free_brief() -> dict[str, Any]:
         generated['meta']['policyMatchCount'] = len(policy_ranked)
         generated['meta']['competitorMatchCount'] = len(competitor_ranked)
         generated['meta']['strictMode'] = True
+        diagnostics = free_news_pipeline.source_diagnostics(merged_items)
+
         generated['meta']['pipelineMode'] = pipeline_mode
         generated['meta']['googleEnabled'] = enable_google
+        generated['meta']['searxngEnabled'] = enable_searxng
         generated['meta']['llmSummaryEnabled'] = enable_llm_summary
         generated['meta']['rsshubEnabled'] = env_flag('CEO_BRIEF_ENABLE_RSSHUB', default=True)
         generated['meta']['rsshubBaseUrl'] = os.getenv('RSSHUB_BASE_URL', 'https://rss.whyx.site:8443').rstrip('/')
+        generated['meta']['mergedItemCount'] = len(merged_items)
+        generated['meta']['droppedDuplicates'] = merged_payload.get('droppedDuplicates', 0)
+        generated['meta']['countsByOrigin'] = diagnostics.get('countsByOrigin', {})
         generated['meta']['host'] = socket.gethostname()
 
         write_json(TODAY_FILE, generated)
@@ -498,6 +522,11 @@ def generate_free_brief() -> dict[str, Any]:
             'generatedAt': generated.get('generatedAt'),
             'meta': generated.get('meta', {}),
             'rssSources': rss_payload.get('sources', []),
+            'rssSourceStats': rss_payload.get('sourceStats', []),
+            'googleQueryStats': google_payload.get('queryStats', []),
+            'searxngQueryStats': searxng_payload.get('queryStats', []),
+            'mergedItemsCount': len(merged_items),
+            'droppedDuplicates': merged_payload.get('droppedDuplicates', 0),
             'macroEconomicNewsCount': len(macro_news_generated),
             'industryFocusNewsCount': len(industry_focus_generated),
             'policyNewsCount': len(generated.get('policyNews', [])),
@@ -533,6 +562,8 @@ def generate_free_brief() -> dict[str, Any]:
             'policyNewsCount': len(generated.get('policyNews', [])),
             'competitorNewsCount': len(generated.get('competitorNews', [])),
             'strictMatchCount': generated.get('meta', {}).get('strictMatchCount', 0),
+            'mergedItemCount': generated.get('meta', {}).get('mergedItemCount', 0),
+            'countsByOrigin': generated.get('meta', {}).get('countsByOrigin', {}),
             'llmSummary': generated.get('llmSummary'),
             'markdownPath': str(LATEST_MD_FILE),
         }
