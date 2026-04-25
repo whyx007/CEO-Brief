@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CEO参阅 MVP</title>
-    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260425-1008" />
   </head>
   <body>
     <div class="app-shell">
@@ -29,139 +29,166 @@
         <section id="globalMessage" class="message hidden"></section>
 
         <section id="tab-dashboard" class="tab active">
-          <section id="strictModeNotice" class="message hidden"></section>
-
-          <header class="page-header">
+          <header class="page-header topbar-header">
             <div>
               <h2>今日 CEO 参阅</h2>
-              <p class="muted">展示后端 `/api/ceo-brief/today` 的结果，并支持直接触发生成。</p>
             </div>
-            <div class="actions">
-              <button id="refreshBtn" class="secondary">刷新</button>
-              <button id="generateBtn" class="accent">生成今日参阅</button>
-              <button id="generateFreeBtn" class="secondary">旧 mock 生成（备用）</button>
+            <div class="topbar-right">
+              <div id="weatherBlock" class="weather-inline empty">暂无内容</div>
+              <div class="actions">
+                <button id="refreshBtn" class="secondary">刷新</button>
+                <button id="generateBtn" class="accent">生成今日参阅</button>
+              </div>
             </div>
           </header>
 
-          <section class="hero-grid">
-            <article class="stat-card">
-              <div class="label">日期</div>
-              <div id="briefDate" class="value">-</div>
+          <section class="grid slider-grid">
+            <article class="panel slider-panel">
+              <div class="panel-header">
+                <h3>市场 / 期货概览</h3>
+                <span id="marketUpdatedAt" class="muted small-meta">-</span>
+              </div>
+              <div class="slider-viewport">
+                <div id="marketSliderTrack" class="slider-track">暂无内容</div>
+              </div>
             </article>
-            <article class="stat-card">
-              <div class="label">状态</div>
-              <div id="briefStatus" class="value">-</div>
-            </article>
-            <article class="stat-card">
-              <div class="label">生成时间</div>
-              <div id="briefGeneratedAt" class="value small">-</div>
-            </article>
-            <article class="stat-card">
-              <div class="label">最近运行</div>
-              <div id="latestRunText" class="value small">-</div>
+            <article class="panel slider-panel">
+              <div class="panel-header">
+                <h3>汇率</h3>
+              </div>
+              <div class="slider-viewport">
+                <div id="fxSliderTrack" class="slider-track">暂无内容</div>
+              </div>
             </article>
           </section>
 
-          <section class="grid meta-grid">
-            <article class="panel compact-panel">
-              <div class="panel-header">
-                <h3>运行模式</h3>
-              </div>
-              <div id="briefMode" class="meta-value">-</div>
-            </article>
-            <article class="panel compact-panel">
-              <div class="panel-header">
-                <h3>生成来源</h3>
-              </div>
-              <div id="briefGenerator" class="meta-value">-</div>
-            </article>
-            <article class="panel compact-panel">
-              <div class="panel-header">
-                <h3>新闻条数</h3>
-              </div>
-              <div id="briefNewsCount" class="meta-value">-</div>
-            </article>
-          </section>
-
-          <section class="grid summary-weather-grid">
-            <article class="panel">
-              <div class="panel-header">
-                <h3>LLM 摘要</h3>
-              </div>
-              <div id="llmSummary" class="markdown-block empty">暂无内容</div>
-            </article>
-            <article class="panel weather-widget-panel">
-              <div class="panel-header">
-                <h3>天气</h3>
-              </div>
-              <div id="weatherBlock" class="weather-block empty">暂无内容</div>
-            </article>
-          </section>
-
-          <section class="grid two-col">
-            <article class="panel">
-              <div class="panel-header">
-                <h3>时政 / 政策</h3>
-                <span id="policyCount" class="count-badge">0</span>
-              </div>
-              <div id="policyList" class="list empty">暂无数据</div>
-            </article>
-            <article class="panel">
-              <div class="panel-header">
-                <h3>宏观经济</h3>
-                <span id="macroCount" class="count-badge">0</span>
-              </div>
-              <div id="macroList" class="list empty">暂无数据</div>
-            </article>
-          </section>
-
-          <section class="grid two-col">
-            <article class="panel">
-              <div class="panel-header">
-                <h3>商业航天产业</h3>
-                <span id="industryFocusCount" class="count-badge">0</span>
-              </div>
-              <div id="industryFocusList" class="list empty">暂无数据</div>
-            </article>
-            <article class="panel">
-              <div class="panel-header">
-                <h3>目标相关</h3>
-                <span id="targetCount" class="count-badge">0</span>
-              </div>
-              <div id="targetList" class="list empty">暂无数据</div>
-            </article>
-          </section>
-
-          <section class="grid two-col">
-            <article class="panel">
-              <div class="panel-header">
-                <h3>今日代办</h3>
-                <span id="todoCount" class="count-badge">0</span>
-              </div>
-              <div id="todoList" class="list empty">暂无数据</div>
-            </article>
-            <article class="panel">
-              <div class="panel-header">
-                <h3>生成结果文件</h3>
-              </div>
-              <div class="file-list">
-                <div class="file-item">
-                  <div class="file-title">Markdown 正文</div>
-                  <div class="file-path">data/latest-brief.md</div>
+          <section class="grid two-col reader-two-col">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>时政要点</h3>
+                  <p class="muted">政治 / 军事 / 文化 / 外交 要闻</p>
                 </div>
-                <div class="file-item">
-                  <div class="file-title">最近运行状态</div>
-                  <div class="file-path">data/latest-run.json</div>
-                </div>
-                <div class="file-item">
-                  <div class="file-title">首页结构化数据</div>
-                  <div class="file-path">mock/ceo-brief-today.json</div>
+                <div class="reader-section-tools">
+                  <select id="policySort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                  </select>
+                  <span id="policyCount" class="count-badge">0</span>
                 </div>
               </div>
-            </article>
+              <div id="policyList" class="list reader-list empty">暂无数据</div>
+            </section>
+
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>产经新闻</h3>
+                </div>
+                <div class="reader-section-tools">
+                  <select id="macroSort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                  </select>
+                  <span id="macroCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="macroList" class="list reader-list empty">暂无数据</div>
+            </section>
           </section>
 
-          <section class="grid">
+          <section class="grid two-col reader-two-col">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>商业航天</h3>
+                </div>
+                <div class="reader-section-tools">
+                  <select id="industryFocusSort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                    <option value="relevance">相关度</option>
+                  </select>
+                  <span id="industryFocusCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="industryFocusList" class="list reader-list empty">暂无数据</div>
+            </section>
+
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>目标信息</h3>
+                  <div id="targetWatchlistTags" class="tags target-watchlist-tags"></div>
+                </div>
+                <div class="reader-section-tools">
+                  <select id="targetSort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                    <option value="relevance">相关度</option>
+                  </select>
+                  <span id="targetCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="targetList" class="list reader-list empty">暂无数据</div>
+            </section>
+          </section>
+
+          <section class="grid two-col reader-two-col bottom-two-col">
+            <section class="reader-section">
+              <article class="panel cal-note-panel">
+                <div class="panel-header">
+                  <h3>日历笔记本</h3>
+                  <div class="note-panel-tools">
+                    <span id="selectedNoteDate" class="count-badge">-</span>
+                    <span id="todoCount" class="count-badge">0</span>
+                    <button id="saveNoteBtn" class="secondary small-btn">保存</button>
+                    <button id="deleteNoteBtn" class="secondary small-btn">删除</button>
+                  </div>
+                </div>
+                <div class="cal-toolbar">
+                  <button id="calendarPrevBtn" class="secondary small-btn">上月</button>
+                  <div id="calendarTitle" class="cal-title">-</div>
+                  <button id="calendarNextBtn" class="secondary small-btn">下月</button>
+                </div>
+                <div class="cal-weekdays">
+                  <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+                </div>
+                <div id="calendarGrid" class="cal-grid"></div>
+                <textarea id="dailyNoteInput" class="note-input-sm" rows="2" placeholder="今天的小记…"></textarea>
+              </article>
+            </section>
+            <section class="reader-section">
+              <article class="panel">
+                <div class="panel-header">
+                  <h3>AI 提醒</h3>
+                  <span id="todoCountBottom" class="count-badge">0</span>
+                </div>
+                <div id="todoList" class="note-ai-list empty">暂无数据</div>
+              </article>
+              <article class="panel" style="margin-top:12px">
+                <div class="panel-header">
+                  <h3>生成结果文件</h3>
+                </div>
+                <div class="file-list compact-file-list">
+                  <div class="file-item">
+                    <div class="file-title">Markdown 正文</div>
+                    <div class="file-path">data/latest-brief.md</div>
+                  </div>
+                  <div class="file-item">
+                    <div class="file-title">最近运行状态</div>
+                    <div class="file-path">data/latest-run.json</div>
+                  </div>
+                  <div class="file-item">
+                    <div class="file-title">首页结构化数据</div>
+                    <div class="file-path">mock/ceo-brief-today.json</div>
+                  </div>
+                </div>
+              </article>
+            </section>
+          </section>
+
+          <section class="grid" style="display:none">
             <article class="panel">
               <div class="panel-header">
                 <h3>最新 Markdown 正文</h3>
@@ -169,6 +196,10 @@
               </div>
               <pre id="latestBriefMarkdown" class="markdown-preview empty">暂无内容</pre>
             </article>
+          </section>
+
+          <section class="grid">
+            <section id="strictModeNotice" class="message hidden"></section>
           </section>
         </section>
 
@@ -242,6 +273,6 @@
       </main>
     </div>
 
-    <script src="/assets/app.js"></script>
+    <script src="/assets/app.js?v=20260425-1728"></script>
   </body>
 </html>

@@ -35,6 +35,7 @@ def _normalize_news_item(item: dict[str, Any], index: int, prefix: str) -> dict[
         'summary': summary[:500],
         'url': url,
         'publishedAt': item.get('publishedDate'),
+        'imageUrl': item.get('imageUrl'),
     }
     if item.get('matchedTargets'):
         normalized['matchedTargets'] = item.get('matchedTargets')
@@ -45,29 +46,44 @@ def _normalize_news_item(item: dict[str, Any], index: int, prefix: str) -> dict[
     return normalized
 
 
+def _contains_chinese(text: str) -> bool:
+    return any('\u4e00' <= ch <= '\u9fff' for ch in text or '')
+
+
+def _prefer_chinese_first(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def sort_key(item: dict[str, Any]) -> tuple[int, int]:
+        text = ' '.join([
+            str(item.get('title') or ''),
+            str(item.get('content') or ''),
+            str(item.get('articleText') or ''),
+        ])
+        return (0 if _contains_chinese(text) else 1, 0)
+    return sorted(items or [], key=sort_key)
+
+
 def build_ceo_brief_from_free_news(*, items: list[dict[str, Any]], summary_text: str | None, existing_today: dict[str, Any] | None = None, policy_items: list[dict[str, Any]] | None = None, competitor_items: list[dict[str, Any]] | None = None, macro_items: list[dict[str, Any]] | None = None, industry_focus_items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     existing_today = existing_today or {}
 
     macro_news: list[dict[str, Any]] = []
-    for index, item in enumerate((macro_items or [])[:4], start=1):
+    for index, item in enumerate(_prefer_chinese_first(macro_items or [])[:15], start=1):
         normalized = _normalize_news_item(item, index, 'macro_news')
         if normalized:
             macro_news.append(normalized)
 
     industry_focus_news: list[dict[str, Any]] = []
-    for index, item in enumerate((industry_focus_items or items or [])[:6], start=1):
+    for index, item in enumerate(_prefer_chinese_first(industry_focus_items or items or [])[:15], start=1):
         normalized = _normalize_news_item(item, index, 'industry_news')
         if normalized:
             industry_focus_news.append(normalized)
 
     policy_news: list[dict[str, Any]] = []
-    for index, item in enumerate((policy_items or [])[:5], start=1):
+    for index, item in enumerate(_prefer_chinese_first(policy_items or [])[:15], start=1):
         normalized = _normalize_news_item(item, index, 'policy_news')
         if normalized:
             policy_news.append(normalized)
 
     competitor_news: list[dict[str, Any]] = []
-    for index, item in enumerate((competitor_items or [])[:5], start=1):
+    for index, item in enumerate(_prefer_chinese_first(competitor_items or [])[:15], start=1):
         normalized = _normalize_news_item(item, index, 'competitor_news')
         if normalized:
             competitor_news.append(normalized)

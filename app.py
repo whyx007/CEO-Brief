@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import socket
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
@@ -16,7 +18,7 @@ from services.llm_client import DeepSeekClient
 from services.news_pipeline import NewsPipeline
 from services.free_news_pipeline import FreeNewsPipeline
 from services.space_sources import SPACE_RSS_SOURCES
-from services.filters import filter_macro_items, filter_space_industry_items
+from services.filters import exclude_items, filter_macro_items, filter_policy_items, filter_space_industry_items
 from services.brief_builder import build_ceo_brief_from_free_news
 from services.markdown_builder import build_brief_markdown
 
@@ -54,6 +56,21 @@ DEFAULT_PROMPT_SETTINGS = {
     'todoPrompt': '请基于目标信息与产经信息生成今日代办建议，要求行动导向、优先级明确、避免空泛表述。',
     'updatedAt': '2026-04-15T09:00:00+08:00',
 }
+
+MARKET_SYMBOLS = [
+    {'symbol': '^DJI', 'name': '道指', 'stooq': ['^dji']},
+    {'symbol': '^IXIC', 'name': '纳指', 'stooq': ['^ixic', '^ndq', '^ndx', '^ccmp', '^comp']},
+    {'symbol': '^GSPC', 'name': '标普500', 'stooq': ['^gspc', '^spx']},
+    {'symbol': '^HSI', 'name': '恒生', 'stooq': ['^hsi']},
+    {'symbol': '000300.SS', 'name': '沪深300', 'stooq': ['^shc']},
+    {'symbol': 'CL=F', 'name': 'WTI', 'stooq': ['cl.f']},
+    {'symbol': 'BZ=F', 'name': '布油', 'stooq': ['cb.f']},
+    {'symbol': 'GC=F', 'name': '黄金', 'stooq': ['gc.f']},
+    {'symbol': 'USDCNY=X', 'name': 'USD/CNY', 'stooq': ['usdcny']},
+    {'symbol': 'USDJPY=X', 'name': 'USD/JPY', 'stooq': ['usdjpy']},
+    {'symbol': 'EURUSD=X', 'name': 'EUR/USD', 'stooq': ['eurusd']},
+    {'symbol': 'GBPUSD=X', 'name': 'GBP/USD', 'stooq': ['gbpusd']},
+]
 
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
@@ -122,6 +139,58 @@ def build_llm_summary(today: dict[str, Any], targets: dict[str, Any], prompts: d
     }
 
 
+def fetch_market_snapshot() -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+
+    for config in MARKET_SYMBOLS:
+        resolved = None
+        for candidate in config['stooq']:
+            try:
+                url = f"https://stooq.com/q/l/?s={urllib.parse.quote(candidate)}&i=d"
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    text = resp.read().decode('utf-8').strip()
+                parts = text.split(',')
+                if len(parts) >= 8 and parts[1] != 'N/D':
+                    resolved = parts
+                    break
+            except Exception:
+                continue
+
+        if not resolved:
+            items.append({
+                'symbol': config['symbol'],
+                'name': config['name'],
+                'price': None,
+                'change': None,
+                'changePercent': None,
+                'currency': None,
+                'marketState': 'N/A',
+            })
+            continue
+
+        open_price = float(resolved[3]) if resolved[3] not in {'N/D', ''} else None
+        close_price = float(resolved[6]) if resolved[6] not in {'N/D', ''} else None
+        change = (close_price - open_price) if open_price is not None and close_price is not None else None
+        change_percent = ((change / open_price) * 100) if change is not None and open_price not in {None, 0} else None
+
+        items.append({
+            'symbol': config['symbol'],
+            'name': config['name'],
+            'price': close_price,
+            'change': change,
+            'changePercent': change_percent,
+            'currency': None,
+            'marketState': 'LIVE' if resolved[2] != '230000' else 'CLOSE',
+        })
+
+    return {
+        'items': items,
+        'updatedAt': now_iso(),
+        'source': 'Stooq',
+    }
+
+
 def generate_brief() -> dict[str, Any]:
     today = read_json(TODAY_FILE)
     targets = read_json(TARGET_SETTINGS_FILE)
@@ -179,6 +248,14 @@ def today() -> dict[str, Any]:
         return read_json(TODAY_FILE)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f'failed_to_read_today_brief: {exc}')
+
+
+@app.get('/api/ceo-brief/market-snapshot')
+def market_snapshot() -> dict[str, Any]:
+    try:
+        return fetch_market_snapshot()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f'failed_to_fetch_market_snapshot: {exc}')
 
 
 @app.post('/api/ceo-brief/generate')
@@ -417,7 +494,7 @@ def generate_free_brief() -> dict[str, Any]:
         enable_google = env_flag('CEO_BRIEF_ENABLE_GOOGLE_NEWS', default=False) and pipeline_mode != 'stable'
         enable_policy_google = env_flag('CEO_BRIEF_ENABLE_POLICY_GOOGLE', default=False) and pipeline_mode != 'stable'
         enable_competitor_google = env_flag('CEO_BRIEF_ENABLE_COMPETITOR_GOOGLE', default=False) and pipeline_mode != 'stable'
-        enable_llm_summary = env_flag('CEO_BRIEF_ENABLE_LLM_SUMMARY', default=False) and pipeline_mode != 'stable'
+        enable_llm_summary = env_flag('CEO_BRIEF_ENABLE_LLM_SUMMARY', default=True)
         jina_top_k = 0 if pipeline_mode == 'stable' else int(os.getenv('CEO_BRIEF_JINA_TOP_K', '1'))
 
         space_hints = ['航天', '卫星', '火箭', '遥感', '测运控', '星座']
@@ -430,7 +507,7 @@ def generate_free_brief() -> dict[str, Any]:
         ))
 
         rss_payload = free_news_pipeline.collect_rss(
-            limit_per_feed=1 if pipeline_mode == 'stable' else 2,
+            limit_per_feed=5 if pipeline_mode == 'stable' else 4,
             extra_sources=SPACE_RSS_SOURCES if use_space_sources else None,
         )
 
@@ -452,12 +529,13 @@ def generate_free_brief() -> dict[str, Any]:
         )
         merged_items = merged_payload['items']
 
-        if enable_policy_google:
-            policy_payload = free_news_pipeline.collect_policy_news(targets, limit_per_query=1)
-            policy_ranked = policy_payload['items'][:4]
-        else:
-            policy_payload = {'queries': [], 'items': []}
-            policy_ranked = filter_macro_items(merged_items, hints=['政策', '国务院', '工信部', '发改委', '卫星互联网', '商业航天'])[:4]
+        policy_payload = free_news_pipeline.collect_policy_news(targets, limit_per_query=4)
+        policy_ranked = policy_payload['items'][:15]
+        if len(policy_ranked) < 10:
+            policy_ranked = free_news_pipeline.merge_and_dedup(
+                policy_ranked,
+                filter_policy_items(merged_items, hints=['政策', '国务院', '工信部', '发改委', '卫星互联网', '商业航天', '新华社', '外交', '国际', '冲突', '局势', '中东', '伊朗', '俄乌', '欧盟', '关税', '经贸'])[:15],
+            ).get('items', [])[:15]
 
         if enable_competitor_google:
             competitor_payload = free_news_pipeline.collect_competitor_news(targets, limit_per_query=1)
@@ -466,11 +544,54 @@ def generate_free_brief() -> dict[str, Any]:
             competitor_payload = {'queries': [], 'items': []}
             competitor_ranked = []
 
-        macro_items = filter_macro_items(merged_items)[:4]
         industry_focus_candidates = filter_space_industry_items(merged_items)
+        space_priority_terms = ['中科天塔', '星载', '激光通信', '通信终端', '天地一体', '卫星测控', '商业航天']
+        space_priority_candidates = [
+            item for item in merged_items
+            if any(
+                term in ' '.join([
+                    str(item.get('title') or ''),
+                    str(item.get('content') or ''),
+                    str(item.get('articleText') or ''),
+                    str(item.get('source') or ''),
+                ])
+                for term in space_priority_terms
+            )
+        ]
+        industry_focus_candidates = free_news_pipeline.merge_and_dedup(
+            space_priority_candidates,
+            industry_focus_candidates,
+        ).get('items', [])
+        if len(industry_focus_candidates) < 15:
+            industry_focus_candidates = free_news_pipeline.merge_and_dedup(
+                industry_focus_candidates,
+                [
+                    item for item in merged_items
+                    if str(item.get('source') or '').strip() in {'SpaceNews', 'NASA Breaking News', 'ESA Top News', 'Space.com'}
+                ][:18],
+            ).get('items', [])
+
+        excluded_for_macro = free_news_pipeline.merge_and_dedup(policy_ranked, industry_focus_candidates).get('items', [])
+        macro_candidates = exclude_items(filter_macro_items(merged_items), excluded_for_macro)
+        if len(macro_candidates) < 15:
+            excluded_urls = {str(item.get('url') or '').strip() for item in excluded_for_macro if item.get('url')}
+            fallback_macro = [
+                item for item in merged_items
+                if str(item.get('url') or '').strip() not in excluded_urls
+            ]
+            macro_candidates = free_news_pipeline.merge_and_dedup(macro_candidates, fallback_macro[:24]).get('items', [])
+        macro_items = macro_candidates[:15]
+        if len(policy_ranked) < 15:
+            policy_fallback = filter_policy_items(
+                [item for item in merged_items if item not in macro_items]
+            )[:12]
+            policy_ranked = free_news_pipeline.merge_and_dedup(
+                policy_ranked,
+                policy_fallback,
+            ).get('items', [])[:15]
         ranked_items = free_news_pipeline.rank_for_targets(merged_items, targets, top_k=4)
         enriched_items = free_news_pipeline.enrich_with_jina(ranked_items, top_k=jina_top_k)
-        industry_focus_items = free_news_pipeline.enrich_with_jina(industry_focus_candidates[:4], top_k=jina_top_k)
+        industry_focus_items = free_news_pipeline.enrich_with_jina(industry_focus_candidates[:15], top_k=jina_top_k)
 
         generated = build_ceo_brief_from_free_news(
             items=enriched_items,

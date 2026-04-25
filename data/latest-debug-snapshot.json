@@ -1,36 +1,259 @@
 {
-  "generatedAt": "2026-04-22T11:10:38+08:00",
+  "generatedAt": "2026-04-25T12:12:54+08:00",
   "meta": {
     "mode": "free-news-pipeline",
-    "newsCount": 1,
+    "newsCount": 30,
     "generatedBy": "ceo-brief-fastapi-service",
-    "strictMatchCount": 0,
-    "policyMatchCount": 0,
+    "strictMatchCount": 1,
+    "policyMatchCount": 15,
     "competitorMatchCount": 0,
     "strictMode": true,
     "pipelineMode": "stable",
     "googleEnabled": false,
-    "llmSummaryEnabled": false,
+    "searxngEnabled": false,
+    "llmSummaryEnabled": true,
+    "rsshubEnabled": true,
+    "rsshubBaseUrl": "https://rss.whyx.site:8443",
+    "mergedItemCount": 60,
+    "droppedDuplicates": 0,
+    "countsByOrigin": {
+      "rss": 60
+    },
     "host": "Aimer-Cat"
   },
-  "macroEconomicNewsCount": 1,
-  "industryFocusNewsCount": 0,
-  "policyNewsCount": 0,
+  "rssSources": [
+    {
+      "name": "36Kr",
+      "url": "https://36kr.com/feed"
+    },
+    {
+      "name": "Reuters Business",
+      "url": "https://feeds.reuters.com/reuters/businessNews"
+    },
+    {
+      "name": "Reuters World",
+      "url": "https://feeds.reuters.com/Reuters/worldNews"
+    },
+    {
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/"
+    },
+    {
+      "name": "VentureBeat AI",
+      "url": "https://venturebeat.com/category/ai/feed/"
+    },
+    {
+      "name": "新华网时政",
+      "url": "http://www.xinhuanet.com/politics/news_politics.xml"
+    },
+    {
+      "name": "人民网时政",
+      "url": "http://www.people.com.cn/rss/politics.xml"
+    },
+    {
+      "name": "RSSHub 36Kr 快讯",
+      "url": "https://rss.whyx.site:8443/36kr/newsflashes"
+    },
+    {
+      "name": "RSSHub 华尔街见闻",
+      "url": "https://rss.whyx.site:8443/wallstreetcn/news"
+    },
+    {
+      "name": "RSSHub 虎嗅 24小时",
+      "url": "https://rss.whyx.site:8443/huxiu/moment"
+    },
+    {
+      "name": "RSSHub 路透 World",
+      "url": "https://rss.whyx.site:8443/reuters/world"
+    },
+    {
+      "name": "RSSHub 联合早报 即时",
+      "url": "https://rss.whyx.site:8443/zaobao/realtime/china"
+    },
+    {
+      "name": "SpaceNews",
+      "url": "https://spacenews.com/feed/"
+    },
+    {
+      "name": "NASA Breaking News",
+      "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+    },
+    {
+      "name": "ESA Top News",
+      "url": "https://www.esa.int/rssfeed/Our_Activities/Space_Engineering_Technology"
+    },
+    {
+      "name": "Space.com",
+      "url": "https://www.space.com/feeds/all"
+    }
+  ],
+  "rssSourceStats": [
+    {
+      "name": "36Kr",
+      "url": "https://36kr.com/feed",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "Reuters Business",
+      "url": "https://feeds.reuters.com/reuters/businessNews",
+      "origin": "rss",
+      "fetchedCount": 0,
+      "keptCount": 0
+    },
+    {
+      "name": "Reuters World",
+      "url": "https://feeds.reuters.com/Reuters/worldNews",
+      "origin": "rss",
+      "fetchedCount": 0,
+      "keptCount": 0
+    },
+    {
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "VentureBeat AI",
+      "url": "https://venturebeat.com/category/ai/feed/",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "新华网时政",
+      "url": "http://www.xinhuanet.com/politics/news_politics.xml",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "人民网时政",
+      "url": "http://www.people.com.cn/rss/politics.xml",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "RSSHub 36Kr 快讯",
+      "url": "https://rss.whyx.site:8443/36kr/newsflashes",
+      "origin": "rsshub",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "RSSHub 华尔街见闻",
+      "url": "https://rss.whyx.site:8443/wallstreetcn/news",
+      "origin": "rsshub",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "RSSHub 虎嗅 24小时",
+      "url": "https://rss.whyx.site:8443/huxiu/moment",
+      "origin": "rsshub",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "RSSHub 路透 World",
+      "url": "https://rss.whyx.site:8443/reuters/world",
+      "origin": "rsshub",
+      "fetchedCount": 0,
+      "keptCount": 0
+    },
+    {
+      "name": "RSSHub 联合早报 即时",
+      "url": "https://rss.whyx.site:8443/zaobao/realtime/china",
+      "origin": "rsshub",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "SpaceNews",
+      "url": "https://spacenews.com/feed/",
+      "origin": "rss",
+      "fetchedCount": 0,
+      "keptCount": 0
+    },
+    {
+      "name": "NASA Breaking News",
+      "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "ESA Top News",
+      "url": "https://www.esa.int/rssfeed/Our_Activities/Space_Engineering_Technology",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    },
+    {
+      "name": "Space.com",
+      "url": "https://www.space.com/feeds/all",
+      "origin": "rss",
+      "fetchedCount": 5,
+      "keptCount": 5
+    }
+  ],
+  "googleQueryStats": [],
+  "searxngQueryStats": [],
+  "mergedItemsCount": 60,
+  "droppedDuplicates": 0,
+  "macroEconomicNewsCount": 15,
+  "industryFocusNewsCount": 15,
+  "policyNewsCount": 15,
   "competitorNewsCount": 0,
-  "rankedItemsCount": 0,
-  "enrichedItemsCount": 0,
-  "macroItemsCount": 1,
-  "industryFocusItemsCount": 0,
-  "policyRankedCount": 0,
+  "rankedItemsCount": 1,
+  "enrichedItemsCount": 1,
+  "macroItemsCount": 15,
+  "industryFocusItemsCount": 15,
+  "policyRankedCount": 15,
   "competitorRankedCount": 0,
-  "firstRankedItem": null,
+  "firstRankedItem": {
+    "source": "36Kr",
+    "title": "最前线｜AI+激光通信，中科天塔要用「太空智驾」体系实现卫星管理模式的三级跨越",
+    "url": "https://36kr.com/p/3780910411193602?f=rss",
+    "content": "<p>随着全球卫星星座计划加速部署，在轨卫星数量激增，太空交通安全问题正在从理论风险变成现实问题。</p>\n  <p>有数据显示，过去半年，全球最大的卫星星座仅半年内就实施了超过5万次主动避碰操作。而当未来星座建设规模达到数万颗、甚至百万颗体量，传统依靠地面站24小时人工监测管控的模式将会面临管理难度陡增、成本高企、传输受限等难题，高速率、高稳定、高安全的星间通信与智能化在轨管理成为技术趋势。</p>\n  <p>要实现这一目标，既需要高可靠的激光通信终端，也需要AI大模型自主分析、自主决策能力的加持。</p>\n  <p>在4月24日举办的“2026中国航天日”商业航天产业高质量发展论坛上，中科天塔正式发布了公司新一代星载激光通信终端。</p>\n  <p>中科天塔副总经理景振龙在会上提到，中科天塔此次发布的新一代终端，在传输速率、链路稳定性、环境适应性和数据安全性等方面实现全面升级。相比传统微波通信，激光通信具有带宽大、时延低、波束窄、保密性强、抗干扰能力突出等优势，可有效弥补地面测控短板，推动卫星测控体系由“地基”为主向“天地一体”升级。</p>\n  <p class=\"image-wrapper\"><img src=\"https://img.36krcdn.com/hsossms/20260424/v2_36b466e342ea453980572f8dc80e53f2@577536001_oswg1307253oswg3984oswg2656_img_jpg?x-oss-process=image/quality,q_90/format,jpg/interlace,1\" /></p>\n  <p class=\"img-desc\">中科天塔新一代星载激光通信终端</p>\n  <p>从技术沿革上看，中科天塔新一代激光通信终端源自西安光机所20余年的技术积累和科技成果转化，终端产品采用独立控制系统设计，不占用卫星主控资源，可靠性与兼容性更优——打个比喻，这意味着它就像“即插即用”的独立模块，可以适配不同的卫星平台。</p>\n  <p>据介绍，在2020-2025年期间，西安光机所自主研发的激光通信终端就实现了产品上星，在此期间创造了当时国内“最快建链”和“最长稳链”的纪录。</p>\n  <p>信息的桥梁有了，如果给卫星再装上一个AI大脑，让其接收数据后可提前进行数据处理、预警和风险规避，就有望让“太空智驾”成为可能——这也是中科天塔想要推动的技术演进和应用落地方向。</p>\n  <p>事实上早在2024年，中科天塔就依托公司过往航天数据与知识体系，推出了国内首个航天测控领域AI大模型，通过2年的迭代优化，陆续推出系列智能体，旨在解决大规模星座地面管控难等问题。</p>\n  <p>据中科天塔总经理曾伟刚介绍，目前其模型及智能体产品已和国内头部卫星公司、体制内院所达成",
+    "publishedDate": "2026-04-24 22:21:58  +0800",
+    "imageUrl": "https://img.36krcdn.com/hsossms/20260424/v2_36b466e342ea453980572f8dc80e53f2@577536001_oswg1307253oswg3984oswg2656_img_jpg?x-oss-process=image/quality,q_90/format,jpg/interlace,1",
+    "origin": "rss",
+    "sourceType": "rss",
+    "relevanceScore": 28,
+    "matchedTargets": [
+      "中科天塔",
+      "商业航天",
+      "地面站",
+      "卫星",
+      "星座",
+      "中国",
+      "西安"
+    ],
+    "relevanceReason": "公司命中：中科天塔；行业命中：商业航天；产业链命中：地面站；关键词命中：卫星, 星座；地域命中：中国, 西安",
+    "strongHitCount": 3,
+    "weakHitCount": 4
+  },
   "firstMacroItem": {
     "id": "macro_news_001",
-    "title": "押注AAV体内CAR-T，「西湖云谷智药」即将启动IIT研究",
+    "title": "36氪首发 | 核心团队来自微软，获近亿投资，要打通AI进厂最后一公里",
     "source": "36Kr",
-    "summary": "文｜胡香赟 编辑｜海若镜 近期，万亿市值“药王”礼来斥资24亿美元（超160亿人民币）完成的一笔收购，将医药行业的目光重新吸引回细胞与基因治疗（CGT）领域。 被收购企业Orna Therapeutics主要从事环状RNA研究，核心药物是一款靶向CD19的体内CAR-T，即将步入临床试验阶段。相较动辄百万元一针的传统CAR-T，体内CAR-T是一种有潜力实现“物美价廉”的细胞疗法。有从业者认为，如果体内CAR-T未来能成药，且实现大规模生产，价格可以做到和普通抗体产品类似，有望解决困扰传统CAR-T已久的商业化难题。 2025年，百时美施贵宝、阿斯利康、艾伯维和吉利德4家跨国药企就已相继出手并购海外体内CAR-T初创公司，涉及总金额近50亿美元。如今，礼来的入局，进一步为该赛道的发展前景注入确定性。 反映到国内市场，据36氪不完全统计，仅今年前4个月，国内体内CAR-T概念企业在一级市场的融资金额就接近20亿人民币。 “ 并购而非BD，说明大型药企已经把体内CAR-T视为下一代治疗平台技术 ，也推动整个领域的估值逻辑从单品种向平台转变。”西湖云谷智药创始人马丽佳认为。 马丽佳曾任西湖大",
-    "url": "https://36kr.com/p/3774632804057607?f=rss",
-    "publishedAt": "2026-04-22 08:30:00  +0800"
+    "summary": "作者丨欧雪 编辑丨袁斯来 硬氪近日获悉，工业智能体及高价值应用公司——智用开物已完成近亿元天使+轮融资。本轮由老股东瑞枫资本领投，创享投资跟投，同时获得战略级客户立讯精密家族办公室及高管团队的战略投资。资金将主要用于建设全球首个面向产业的“工业语义引擎”及制造业高价值岗位智能体研发。 这已是智用开物过去一年内的第三轮融资。2025年，公司先后完成由瑞枫资本、豫资涨泉及上市公司制造业数字化龙头企业赛意信息的投资。 智用开物2024年1月成立于广州，专注于通过“工业语义引擎+工业级多智能体系统”，将复杂的工业知识转化为AI可解析、可执行的逻辑，降低AI在工业场景的落地门槛。 硬氪获悉，智用开物的核心团队带有浓厚的“微软基因”。CEO管震曾任微软中国首席技术顾问，是国内知名人工智能应用专家，COO赵铭曾任微软全球CTO办公室首席架构师，CTO张善友是连续20届微软最有价值专家和腾讯架构师名人堂成员；团队其他核心成员也均来自微软、阿里、腾讯、IBM等企业。 与市面上多数停留在数字化层面的软件公司不同，智用开物已真正深入产线。公司产品能原生支持OPC UA等工业协议（基于C#语言），实现毫秒级响",
+    "url": "https://36kr.com/p/3781548853533959?f=rss",
+    "publishedAt": "2026-04-25 09:10:38  +0800",
+    "imageUrl": "https://img.36krcdn.com/hsossms/20260425/v2_e7449a939a2842bbb390a7c420de400a@6221844_oswg302736oswg773oswg635_img_000?x-oss-process=image/format,jpg/interlace,1"
   },
-  "firstIndustryFocusItem": null
+  "firstIndustryFocusItem": {
+    "id": "industry_news_001",
+    "title": "最前线｜AI+激光通信，中科天塔要用「太空智驾」体系实现卫星管理模式的三级跨越",
+    "source": "36Kr",
+    "summary": "随着全球卫星星座计划加速部署，在轨卫星数量激增，太空交通安全问题正在从理论风险变成现实问题。 有数据显示，过去半年，全球最大的卫星星座仅半年内就实施了超过5万次主动避碰操作。而当未来星座建设规模达到数万颗、甚至百万颗体量，传统依靠地面站24小时人工监测管控的模式将会面临管理难度陡增、成本高企、传输受限等难题，高速率、高稳定、高安全的星间通信与智能化在轨管理成为技术趋势。 要实现这一目标，既需要高可靠的激光通信终端，也需要AI大模型自主分析、自主决策能力的加持。 在4月24日举办的“2026中国航天日”商业航天产业高质量发展论坛上，中科天塔正式发布了公司新一代星载激光通信终端。 中科天塔副总经理景振龙在会上提到，中科天塔此次发布的新一代终端，在传输速率、链路稳定性、环境适应性和数据安全性等方面实现全面升级。相比传统微波通信，激光通信具有带宽大、时延低、波束窄、保密性强、抗干扰能力突出等优势，可有效弥补地面测控短板，推动卫星测控体系由“地基”为主向“天地一体”升级。 中科天塔新一代星载激光通信终端 从技术沿革上看，中科天塔新一代激光通信终端源自西安光机所20余年的技术积累和科技成果转化，终",
+    "url": "https://36kr.com/p/3780910411193602?f=rss",
+    "publishedAt": "2026-04-24 22:21:58  +0800",
+    "imageUrl": "https://img.36krcdn.com/hsossms/20260424/v2_36b466e342ea453980572f8dc80e53f2@577536001_oswg1307253oswg3984oswg2656_img_jpg?x-oss-process=image/quality,q_90/format,jpg/interlace,1"
+  }
 }

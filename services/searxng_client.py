@@ -13,6 +13,7 @@ class SearXNGClient:
         self.default_language = os.getenv('SEARXNG_LANGUAGE', 'zh-CN').strip()
         self.default_time_range = os.getenv('SEARXNG_TIME_RANGE', 'day').strip()
         self.default_categories = os.getenv('SEARXNG_CATEGORIES', 'news').strip()
+        self.verify_ssl = os.getenv('SEARXNG_VERIFY_SSL', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
 
     @property
     def enabled(self) -> bool:
@@ -33,6 +34,7 @@ class SearXNGClient:
                 'categories': categories or self.default_categories,
             },
             timeout=self.timeout_seconds,
+            verify=self.verify_ssl,
         )
         response.raise_for_status()
         return response.json()

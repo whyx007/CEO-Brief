@@ -73,8 +73,23 @@ class FreeNewsPipeline:
         rsshub_sources = build_rsshub_sources() if use_rsshub else []
         sources = [*DEFAULT_RSS_SOURCES, *rsshub_sources, *(extra_sources or [])]
 
-        for source in sources:
-            parsed_items = self.rss.parse_feed(source['url'], source_name=source['name'], limit=limit_per_feed)
+        import concurrent.futures
+
+        def _fetch_one(source: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+            remote_timeout = float(os.getenv('RSS_REQUEST_TIMEOUT_SECONDS', '4'))
+            if 'RSSHub ' in source.get('name', ''):
+                remote_timeout = float(os.getenv('RSSHUB_TIMEOUT_SECONDS', '5'))
+            try:
+                self.rss.timeout_seconds = remote_timeout
+                parsed = self.rss.parse_feed(source['url'], source_name=source['name'], limit=limit_per_feed)
+            except Exception:
+                parsed = []
+            return source, parsed
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(_fetch_one, sources))
+
+        for source, parsed_items in results:
             kept = 0
             for item in parsed_items:
                 url = item.get('url') or ''

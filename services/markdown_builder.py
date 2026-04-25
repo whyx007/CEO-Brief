@@ -14,6 +14,14 @@ def _clean_text(value: Any) -> str:
     return text.strip()
 
 
+def _clean_source_name(value: Any) -> str:
+    text = _clean_text(value)
+    if text.lower().startswith('rsshub '):
+        text = text[7:]
+    return text.strip()
+
+
+
 def _render_news_section(title: str, items: list[dict[str, Any]]) -> list[str]:
     lines = [f'## {title}']
     if not items:
@@ -23,7 +31,7 @@ def _render_news_section(title: str, items: list[dict[str, Any]]) -> list[str]:
     for idx, item in enumerate(items, start=1):
         lines.append(f'{idx}. **{_clean_text(item.get("title", "未命名")) }**')
         if item.get('source'):
-            lines.append(f'   - 来源：{_clean_text(item.get("source"))}')
+            lines.append(f'   - 来源：{_clean_source_name(item.get("source"))}')
         if item.get('publishedAt'):
             lines.append(f'   - 时间：{_clean_text(item.get("publishedAt"))}')
         if item.get('summary'):
@@ -48,13 +56,14 @@ def build_brief_markdown(brief: dict[str, Any]) -> str:
         lines.append('')
 
     policy_news = brief.get('policyNews') or []
-    lines.extend(_render_news_section('时政 / 政策新闻', policy_news))
+    lines.extend(_render_news_section('环球要事', policy_news))
 
     macro_news = brief.get('macroEconomicNews') or []
-    lines.extend(_render_news_section('宏观经济新闻', macro_news))
+    lines.extend(_render_news_section('产经新闻', macro_news))
 
     industry_focus_news = brief.get('industryFocusNews') or []
-    lines.extend(_render_news_section('商业航天产业新闻', industry_focus_news))
+    combined_industry_focus_news = [*policy_news, *industry_focus_news]
+    lines.extend(_render_news_section('商业航天分析', combined_industry_focus_news))
 
     competitor_news = brief.get('competitorNews') or []
     if competitor_news:
