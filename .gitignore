@@ -1,0 +1,31 @@
+# Binary & data files
+company-info/
+*.xlsx
+*.xls
+*.csv
+*.pdf
+*.pptx
+*.docx
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.pyc
+__pycache__/
+*.pyc
+*.zip
+
+# Runtime data
+data/
+mock/ceo-brief-today.json
+mock/tianta_ceo_target_updates.json
+mock/tianta_target_watchlist.json
+
+# Environment & secrets
+.env
+.env.*
+
+# System
+.DS_Store
+Thumbs.db
