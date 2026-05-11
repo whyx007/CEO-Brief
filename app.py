@@ -13,7 +13,7 @@ from modules.competitive_analysis.routes import router as competitive_analysis_r
 ROOT = Path(__file__).resolve().parent
 FRONTEND_DIR = ROOT / 'frontend'
 LOGO_DIR = ROOT / 'logo'
-COMPANY_SUMMARY_DIR = ROOT / 'company-info' / 'summary' / 'company-summary'
+COMPANY_SUMMARY_DIR = Path('/data/company-summary')
 
 app = FastAPI(title='AI Post-Invest Platform', version='0.5.0')
 app.include_router(ceo_brief_router)
@@ -24,6 +24,8 @@ if FRONTEND_DIR.exists():
     app.mount('/assets', StaticFiles(directory=str(FRONTEND_DIR / 'assets')), name='platform-assets')
 if COMPANY_SUMMARY_DIR.exists():
     app.mount('/company-summary', StaticFiles(directory=str(COMPANY_SUMMARY_DIR)), name='company-summary')
+if LOGO_DIR.exists():
+    app.mount('/logo', StaticFiles(directory=str(LOGO_DIR)), name='logo')
 
 
 @app.get('/')

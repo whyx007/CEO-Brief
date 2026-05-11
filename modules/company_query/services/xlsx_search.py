@@ -10,7 +10,7 @@ from typing import Any
 from modules.company_query.config import COMPANY_INFO_DIR
 
 NS = {'a': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
-SUMMARY_ROOT = COMPANY_INFO_DIR / 'summary' / 'company-summary'
+SUMMARY_ROOT = Path('/data/company-summary')
 
 
 def _col_to_index(ref: str) -> int:
@@ -23,6 +23,11 @@ def _col_to_index(ref: str) -> int:
 
 def _cell_text(cell: ET.Element, shared_strings: list[str]) -> str:
     cell_type = cell.attrib.get('t', '')
+    # Inline string: text is in <is><t>, not <v>
+    if cell_type == 'inlineStr':
+        parts = [node.text or '' for node in cell.findall('.//a:t', NS)]
+        return ''.join(parts).strip()
+    # Shared string reference or plain text
     value = cell.find('a:v', NS)
     if value is None or not value.text:
         return ''
@@ -31,9 +36,6 @@ def _cell_text(cell: ET.Element, shared_strings: list[str]) -> str:
         idx = int(txt)
         if 0 <= idx < len(shared_strings):
             return shared_strings[idx].strip()
-    if cell_type == 'inlineStr':
-        parts = [node.text or '' for node in cell.findall('.//a:t', NS)]
-        return ''.join(parts).strip()
     return txt
 
 

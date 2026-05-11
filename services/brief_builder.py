@@ -61,7 +61,7 @@ def _prefer_chinese_first(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(items or [], key=sort_key)
 
 
-def build_ceo_brief_from_free_news(*, items: list[dict[str, Any]], summary_text: str | None, existing_today: dict[str, Any] | None = None, policy_items: list[dict[str, Any]] | None = None, competitor_items: list[dict[str, Any]] | None = None, macro_items: list[dict[str, Any]] | None = None, industry_focus_items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def build_ceo_brief_from_free_news(*, items: list[dict[str, Any]], summary_text: str | None, existing_today: dict[str, Any] | None = None, policy_items: list[dict[str, Any]] | None = None, competitor_items: list[dict[str, Any]] | None = None, macro_items: list[dict[str, Any]] | None = None, industry_focus_items: list[dict[str, Any]] | None = None, target_updates_items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     existing_today = existing_today or {}
 
     macro_news: list[dict[str, Any]] = []
@@ -104,7 +104,14 @@ def build_ceo_brief_from_free_news(*, items: list[dict[str, Any]], summary_text:
     if not weather.get('location'):
         weather['location'] = '中科天塔所在地'
 
-    target_updates: list[dict[str, Any]] = []
+    if target_updates_items:
+        target_updates = []
+        for index, item in enumerate(target_updates_items[:10], start=1):
+            normalized = _normalize_news_item(item, index, 'target_update')
+            if normalized:
+                target_updates.append(normalized)
+    else:
+        target_updates = []
 
     result = {
         'date': datetime.now().date().isoformat(),
