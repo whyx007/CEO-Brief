@@ -1,0 +1,23 @@
+# Claude skills and config (project-level, not repo)
+.claude/
+.claudeignore
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Node
+node_modules/
+package-lock.json
+package.json
+
+# Temp output
+output/test/
+test/
+* copy.*
+
+# OS
+.DS_Store
+Thumbs.db

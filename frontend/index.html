@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星擎智服</title>
+    <link rel="icon" type="image/png" href="/logo/logo8.png" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260508-1512" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <h1 class="brand-title"><img src="/logo/logo8.png" alt="星擎智服 logo" class="brand-logo" /> <span>星擎智服</span></h1>
+          <nav class="nav nav-inline nav-vertical">
+            <button class="nav-btn active" data-tab="dashboard">CEO参阅</button>
+            <button class="nav-btn" data-tab="company-query">企业查询</button>
+            <button class="nav-btn" data-tab="competitive-analysis">竞情分析</button>
+          </nav>
+        </div>
+        <div class="sidebar-footer muted">
+          <div>后端主线：Python / FastAPI</div>
+          <div id="healthText">服务状态检测中…</div>
+          <div id="backendMetaText">运行信息读取中…</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section id="globalMessage" class="message hidden"></section>
+
+        <section id="tab-dashboard" class="tab active">
+          <header class="page-header topbar-header">
+            <div>
+              <h2>今日 CEO 参阅</h2>
+            </div>
+            <div class="topbar-right">
+              <div id="weatherBlock" class="weather-inline empty">暂无内容</div>
+              <div class="actions topbar-actions">
+                <button id="refreshBtn" class="secondary">刷新</button>
+                <button id="generateBtn" class="secondary">生成今日参阅</button>
+                <button class="nav-btn icon-nav-btn" data-tab="settings" title="设置" aria-label="设置">
+                  <span aria-hidden="true">⚙</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <section class="grid slider-grid">
+            <article class="panel slider-panel">
+              <div class="panel-header">
+                <h3>市场 / 期货概览</h3>
+                <span id="marketUpdatedAt" class="muted small-meta">-</span>
+              </div>
+              <div class="slider-viewport">
+                <div id="marketSliderTrack" class="slider-track">暂无内容</div>
+              </div>
+            </article>
+            <article class="panel slider-panel">
+              <div class="panel-header">
+                <h3>汇率</h3>
+              </div>
+              <div class="slider-viewport">
+                <div id="fxSliderTrack" class="slider-track">暂无内容</div>
+              </div>
+            </article>
+          </section>
+
+          <section class="grid two-col reader-two-col">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>时政要点</h3>
+                  <p class="muted">政治 / 军事 / 文化 / 外交 要闻</p>
+                </div>
+                <div class="reader-section-tools">
+                  <select id="policySort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                  </select>
+                  <span id="policyCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="policyList" class="list reader-list empty">暂无数据</div>
+            </section>
+
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>产经新闻</h3>
+                </div>
+                <div class="reader-section-tools">
+                  <select id="macroSort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                  </select>
+                  <span id="macroCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="macroList" class="list reader-list empty">暂无数据</div>
+            </section>
+          </section>
+
+          <section class="grid two-col reader-two-col">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>商业航天</h3>
+                </div>
+                <div class="reader-section-tools">
+                  <select id="industryFocusSort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                    <option value="relevance">相关度</option>
+                  </select>
+                  <span id="industryFocusCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="industryFocusList" class="list reader-list empty">暂无数据</div>
+            </section>
+
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>目标信息</h3>
+                </div>
+                <div class="reader-section-tools">
+                  <select id="targetSort" class="sort-select">
+                    <option value="default">默认</option>
+                    <option value="latest">最新</option>
+                    <option value="relevance">相关度</option>
+                  </select>
+                  <span id="targetCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="targetList" class="list reader-list empty">暂无数据</div>
+            </section>
+          </section>
+
+          <section class="grid two-col reader-two-col bottom-two-col">
+            <section class="reader-section">
+              <article class="panel cal-note-panel">
+                <div class="panel-header">
+                  <h3>日历笔记本</h3>
+                  <div class="note-panel-tools">
+                    <span id="selectedNoteDate" class="count-badge">-</span>
+                    <span id="todoCount" class="count-badge">0</span>
+                    <button id="saveNoteBtn" class="secondary small-btn">保存</button>
+                    <button id="deleteNoteBtn" class="secondary small-btn">删除</button>
+                  </div>
+                </div>
+                <div class="cal-toolbar">
+                  <button id="calendarPrevBtn" class="secondary small-btn">上月</button>
+                  <div id="calendarTitle" class="cal-title">-</div>
+                  <button id="calendarNextBtn" class="secondary small-btn">下月</button>
+                </div>
+                <div class="cal-weekdays">
+                  <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+                </div>
+                <div id="calendarGrid" class="cal-grid"></div>
+                <textarea id="dailyNoteInput" class="note-input-sm" rows="2" placeholder="今天的小记…"></textarea>
+              </article>
+            </section>
+            <section class="reader-section">
+              <article class="panel">
+                <div class="panel-header">
+                  <h3>AI 提醒</h3>
+                  <span id="todoCountBottom" class="count-badge">0</span>
+                </div>
+                <div id="todoList" class="note-ai-list empty">暂无数据</div>
+              </article>
+              <article class="panel" style="margin-top:12px">
+                <div class="panel-header">
+                  <h3>生成结果文件</h3>
+                </div>
+                <div class="file-list compact-file-list">
+                  <div class="file-item">
+                    <div class="file-title">Markdown 正文</div>
+                    <div class="file-path">data/latest-brief.md</div>
+                  </div>
+                  <div class="file-item">
+                    <div class="file-title">最近运行状态</div>
+                    <div class="file-path">data/latest-run.json</div>
+                  </div>
+                  <div class="file-item">
+                    <div class="file-title">首页结构化数据</div>
+                    <div class="file-path">mock/ceo-brief-today.json</div>
+                  </div>
+                </div>
+              </article>
+            </section>
+          </section>
+
+          <section class="grid" style="display:none">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>最新 Markdown 正文</h3>
+                <button id="reloadMarkdownBtn" class="secondary small-btn">刷新正文</button>
+              </div>
+              <pre id="latestBriefMarkdown" class="markdown-preview empty">暂无内容</pre>
+            </article>
+          </section>
+
+          <section class="grid">
+            <section id="strictModeNotice" class="message hidden"></section>
+          </section>
+        </section>
+
+        <section id="tab-company-query" class="tab">
+          <header class="page-header">
+            <div>
+              <h2>企业查询</h2>
+              <p class="muted">与 CEO参阅 共用前端壳；后端实现独立在 modules/company_query/。</p>
+            </div>
+            <div class="actions topbar-actions">
+              <button id="companyQueryStatusBtn" class="secondary">读取状态</button>
+              <button id="companyQuerySearchBtn" class="secondary">查询</button>
+              <button class="nav-btn icon-nav-btn" data-tab="company-query-settings" title="企业查询设置" aria-label="企业查询设置">
+                <span aria-hidden="true">⚙</span>
+              </button>
+            </div>
+          </header>
+
+          <section class="grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>查询输入</h3>
+              </div>
+              <div class="form-grid single">
+                <label>
+                  <span>查询内容</span>
+                  <textarea id="companyQueryInput" rows="4" placeholder="输入企业名称、简称、关键词…"></textarea>
+                </label>
+              </div>
+              <div class="company-query-toolbar">
+                <div>
+                  <div class="muted small-meta" style="margin-bottom:8px">历史查询</div>
+                  <div class="company-query-chips" id="companyQueryHistory">
+                    <span class="muted small-meta">暂无历史查询</span>
+                  </div>
+                </div>
+                <div class="muted small-meta">支持公司名 / 简称 / 技术关键词 / 场景词；Ctrl+Enter 可直接查询</div>
+              </div>
+              <div class="message success" id="companyQueryStatusText" style="margin-top:12px">企业查询模块骨架已就绪。</div>
+            </article>
+          </section>
+
+          <section class="grid">
+          </section>
+
+          <section class="grid">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>企业查询结果</h3>
+                </div>
+                <div class="reader-section-tools">
+                  <span id="companyQueryCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="companyQueryList" class="list reader-list empty">暂无数据</div>
+            </section>
+          </section>
+
+          <section class="grid" id="companySummarySection" style="display:none">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>企业简介</h3>
+                  <p class="muted" id="companySummaryGalleryMeta">选中企业后在这里查看配图</p>
+                </div>
+                <div class="reader-section-tools">
+                  <span id="companySummaryGalleryCount" class="count-badge">0</span>
+                </div>
+              </div>
+              <div id="companySummaryGallery" class="company-summary-gallery empty">暂无图片</div>
+            </section>
+          </section>
+
+          <section class="grid">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>企业浏览 <span class="muted" style="font-weight:normal;font-size:0.85em">（点击行展开完整画像）</span></h3>
+                  <p class="muted">共 <span id="companyBrowseCount">0</span> 家企业</p>
+                </div>
+              </div>
+              <div id="companyBrowseRail" class="company-browse-rail">
+                <div class="company-browse-list empty">暂无数据</div>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section id="tab-competitive-analysis" class="tab">
+          <header class="page-header">
+            <div>
+              <h2>竞情分析</h2>
+              <p class="muted">先展示 output 中已生成的天塔竞情周报，并逐步替换为可执行 FastAPI 后端能力。</p>
+            </div>
+            <div class="actions topbar-actions">
+              <button id="competitiveAnalysisRefreshBtn" class="secondary">读取报告</button>
+              <button id="competitiveAnalysisGenerateBtn" class="secondary">生成</button>
+              <button class="nav-btn icon-nav-btn" data-tab="competitive-analysis-settings" title="竞情分析设置" aria-label="竞情分析设置">
+                <span aria-hidden="true">⚙</span>
+              </button>
+            </div>
+          </header>
+
+          <section class="grid two-col competitive-meta-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>模块状态</h3>
+                <span id="competitiveStatusBadge" class="count-badge">-</span>
+              </div>
+              <div id="competitiveStatusText" class="message success">竞情分析模块加载中…</div>
+              <div id="competitiveJobStatus" class="competitive-job-status empty">暂无任务状态</div>
+              <div id="competitiveRuntimeMeta" class="competitive-runtime-meta"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
+                <h3>报告列表</h3>
+                <span id="competitiveReportCount" class="count-badge">0</span>
+              </div>
+              <div id="competitiveReportRail" class="competitive-report-rail empty">暂无数据</div>
+            </article>
+          </section>
+
+          <section class="grid two-col competitive-meta-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>本期要点提炼</h3>
+                <span id="competitiveSummaryCount" class="count-badge">0</span>
+              </div>
+              <div id="competitiveSummaryCards" class="competitive-summary-grid empty">暂无数据</div>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
+                <h3>报告信息</h3>
+              </div>
+              <div id="competitiveReportMeta" class="competitive-report-meta empty">暂无数据</div>
+            </article>
+          </section>
+
+          <section class="grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h3 id="competitiveReportTitle">竞情周报正文</h3>
+              </div>
+              <div id="competitiveSections" class="competitive-sections empty">暂无内容</div>
+            </article>
+          </section>
+        </section>
+
+        <section id="tab-competitive-analysis-settings" class="tab">
+          <header class="page-header">
+            <div>
+              <h2>竞情分析设置</h2>
+              <p class="muted">当前先做只读设置页：展示 config.py / tasks.py 中关键运行项，以及平台接管后的搜索入口策略。</p>
+            </div>
+            <div class="actions">
+              <button class="nav-btn inline-back-btn" data-tab="competitive-analysis">← 返回 竞情分析</button>
+            </div>
+          </header>
+
+          <section class="grid two-col competitive-meta-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>运行设置</h3>
+                <div class="actions">
+                  <button id="reloadCompetitiveSettingsBtn" class="secondary small-btn">重新读取</button>
+                  <button id="saveCompetitiveSettingsBtn" class="secondary small-btn">保存设置</button>
+                </div>
+              </div>
+              <div class="form-grid single compact-form-grid" id="competitiveSettingsForm">
+                <label>
+                  <span>搜索入口</span>
+                  <input id="competitiveSearchProvider" type="text" value="searxng" readonly />
+                </label>
+                <label>
+                  <span>SearXNG 地址</span>
+                  <input id="competitiveSearxngBaseUrl" type="text" placeholder="https://search.example.com" />
+                </label>
+                <label>
+                  <span>SearXNG SSL 校验</span>
+                  <select id="competitiveSearxngVerifySsl" class="sort-select source-select">
+                    <option value="true">开启</option>
+                    <option value="false">关闭</option>
+                  </select>
+                </label>
+                <label>
+                  <span>输出格式</span>
+                  <select id="competitiveOutputFormat" class="sort-select source-select">
+                    <option value="md">md</option>
+                    <option value="pdf">pdf</option>
+                    <option value="both">both</option>
+                  </select>
+                </label>
+                <label>
+                  <span>DeepSeek 模型</span>
+                  <input id="competitiveDeepseekModel" type="text" placeholder="deepseek-chat" />
+                </label>
+                <label>
+                  <span>Qwen 模型</span>
+                  <input id="competitiveQwenModel" type="text" placeholder="qwen-plus" />
+                </label>
+                <label>
+                  <span>首页重点摘要键</span>
+                  <textarea id="competitiveFeaturedSectionKeys" rows="3" placeholder="executive_summary\nonepager_text\ntop15_text"></textarea>
+                </label>
+                <label>
+                  <span>首页摘要卡数量</span>
+                  <input id="competitiveFeaturedSectionLimit" type="number" min="1" max="12" />
+                </label>
+                <label>
+                  <span>报告列表数量</span>
+                  <input id="competitiveReportListLimit" type="number" min="1" max="50" />
+                </label>
+                <label>
+                  <span>章节预览数量</span>
+                  <input id="competitiveSectionPreviewLimit" type="number" min="1" max="50" />
+                </label>
+                <label>
+                  <span>默认报告</span>
+                  <input id="competitiveDefaultReportId" type="text" placeholder="latest 或 20260419_weekly" />
+                </label>
+                <label>
+                  <span>分析窗口说明</span>
+                  <input id="competitiveWindowMode" type="text" placeholder="上一个完整自然周（周一~周日）" />
+                </label>
+                <label>
+                  <span>任务流（每行一个 key）</span>
+                  <textarea id="competitiveTaskFlow" rows="6" placeholder="discover\ntalent\nmarket"></textarea>
+                </label>
+                <label>
+                  <span>种子目标（每行一个）</span>
+                  <textarea id="competitiveSeedCompetitors" rows="8" placeholder="长光卫星\n上海垣信卫星"></textarea>
+                </label>
+                <label>
+                  <span>天塔关键词（每行一个）</span>
+                  <textarea id="competitiveTiantaKeywords" rows="8" placeholder="卫星测控\n在轨管理"></textarea>
+                </label>
+                <label>
+                  <span>备注（每行一条）</span>
+                  <textarea id="competitiveNotesInput" rows="6" placeholder="当前统一由平台接管搜索入口"></textarea>
+                </label>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
+                <h3>任务流配置</h3>
+              </div>
+              <div id="competitiveSettingsTasks" class="competitive-task-list empty">暂无数据</div>
+              <article class="panel competitive-side-panel" style="margin-top:12px">
+                <div class="panel-header">
+                  <h3>当前设置快照</h3>
+                </div>
+                <div id="competitiveSettingsRuntime" class="competitive-settings-grid empty">暂无数据</div>
+              </article>
+            </article>
+          </section>
+
+          <section class="grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>说明</h3>
+              </div>
+              <div id="competitiveSettingsNotes" class="competitive-notes empty">暂无数据</div>
+            </article>
+          </section>
+        </section>
+
+        <section id="tab-company-query-settings" class="tab">
+          <header class="page-header">
+            <div>
+              <h2>企业查询设置</h2>
+              <p class="muted">管理企业查询的数据输入来源，后续可在这里扩展数据库、API 与统一数据网关。</p>
+            </div>
+            <div class="actions">
+              <button class="nav-btn inline-back-btn" data-tab="company-query">← 返回 企业查询</button>
+            </div>
+          </header>
+
+          <section class="grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>输入源</h3>
+              </div>
+              <div class="form-grid single compact-form-grid">
+                <label>
+                  <span>当前入口</span>
+                  <select id="companyQuerySource" class="sort-select source-select">
+                    <option value="xlsx">XLSX 企业库（当前）</option>
+                    <option value="database" disabled>数据库入口（预留）</option>
+                  </select>
+                </label>
+                <div class="muted small-meta">当前企业查询从本地 Excel 企业库读取；后续可平滑切换到数据库或其他统一数据入口。</div>
+              </div>
+            </article>
+          </section>
+        </section>
+
+        <section id="tab-settings" class="tab">
+          <header class="page-header">
+            <div>
+              <h2>设置</h2>
+              <p class="muted">编辑目标对象与 Prompt 配置，并直接保存到后端 JSON 文件。</p>
+            </div>
+            <div class="actions">
+              <button class="nav-btn inline-back-btn" data-tab="dashboard">← 返回 CEO参阅</button>
+              <button id="reloadSettingsBtn" class="secondary">重新读取</button>
+              <button id="saveSettingsBtn">保存全部设置</button>
+            </div>
+          </header>
+
+          <section class="grid two-col">
+            <article class="panel">
+              <div class="panel-header">
+                <h3>目标设置</h3>
+              </div>
+              <form id="targetsForm" class="form-grid">
+                <label>
+                  <span>Companies</span>
+                  <textarea name="companies" rows="3" placeholder="每行一个"></textarea>
+                </label>
+                <label>
+                  <span>Industries</span>
+                  <textarea name="industries" rows="4"></textarea>
+                </label>
+                <label>
+                  <span>Keywords</span>
+                  <textarea name="keywords" rows="4"></textarea>
+                </label>
+                <label>
+                  <span>Regions</span>
+                  <textarea name="regions" rows="3"></textarea>
+                </label>
+                <label>
+                  <span>Competitors</span>
+                  <textarea name="competitors" rows="4"></textarea>
+                </label>
+                <label>
+                  <span>Upstream / Downstream</span>
+                  <textarea name="upstreamDownstream" rows="4"></textarea>
+                </label>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <h3>Prompt 设置</h3>
+                <button id="resetPromptsBtn" class="secondary small-btn" type="button">恢复默认 Prompt</button>
+              </div>
+              <form id="promptsForm" class="form-grid single">
+                <label>
+                  <span>newsFilterPrompt</span>
+                  <textarea name="newsFilterPrompt" rows="5"></textarea>
+                </label>
+                <label>
+                  <span>newsSummaryPrompt</span>
+                  <textarea name="newsSummaryPrompt" rows="6"></textarea>
+                </label>
+                <label>
+                  <span>todoPrompt</span>
+                  <textarea name="todoPrompt" rows="5"></textarea>
+                </label>
+              </form>
+            </article>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="/assets/app.js?v=20260508-1512"></script>
+  </body>
+</html>
