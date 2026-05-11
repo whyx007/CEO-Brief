@@ -1,0 +1,96 @@
+{
+  "runtime": {
+    "searchProvider": "searxng",
+    "searxngBaseUrl": "https://search.whyx.site:8444",
+    "searxngVerifySsl": false,
+    "outputFormat": "both",
+    "llmProvider": "deepseek",
+    "deepseekModel": "deepseek-chat",
+    "qwenModel": "qwen-plus",
+    "searchFallbacksBlocked": [
+      "bocha",
+      "serper",
+      "bing",
+      "serpapi"
+    ]
+  },
+  "display": {
+    "featuredSectionKeys": [
+      "executive_summary",
+      "onepager_text",
+      "top15_text",
+      "satellite_backup_text"
+    ],
+    "featuredSectionLimit": 4,
+    "reportListLimit": 12,
+    "sectionPreviewLimit": 8,
+    "defaultReportId": "latest"
+  },
+  "analysis": {
+    "windowMode": "上一个完整自然周（周一~周日）",
+    "taskFlow": [
+      "discover",
+      "talent",
+      "market",
+      "tech",
+      "bidding_funding",
+      "policy",
+      "global_tech",
+      "scoring",
+      "report"
+    ],
+    "seedCompetitorNames": [
+      "长光卫星",
+      "上海垣信卫星",
+      "国科量子",
+      "中国卫星互联网集团",
+      "西安卫星测控中心",
+      "北京飞行控制中心",
+      "中国科学院空天信息创新研究院",
+      "中国科学院国家空间科学中心",
+      "国防科技大学",
+      "航天工程大学",
+      "航天科技集团",
+      "航天科工集团",
+      "中电科集团",
+      "银河航天",
+      "酒泉卫星发射中心",
+      "西昌卫星发射中心",
+      "太原卫星发射中心",
+      "文昌卫星发射中心",
+      "海南国际商业航天发射",
+      "星图测控",
+      "寰宇卫星",
+      "开运联合",
+      "星邑空间",
+      "航天驭星"
+    ],
+    "tiantaKeywords": [
+      "卫星测控",
+      "在轨管理",
+      "航天器管理",
+      "测运控软件",
+      "测运控技术服务",
+      "测运控硬件",
+      "卫星激光通讯",
+      "激光通讯终端",
+      "星间链路",
+      "地面站",
+      "卫星健康管理",
+      "卫星星座管理",
+      "大模型",
+      "智能地面测控系统",
+      "航天云平台",
+      "航天私域大模型",
+      "卫星数字星座仿真与智能平台",
+      "航天卫星轨道计算",
+      "TT&C"
+    ]
+  },
+  "notes": [
+    "当前统一由平台接管搜索入口，旧的 Bocha / Serper / Bing / SerpAPI 不再作为执行链的一部分。",
+    "生成链优先使用 SearXNG + 招投标公开站点 + DuckDuckGo 兜底。",
+    "本设置文件用于页面设置读写；底层 config.py 仍保留原工程定义供兼容使用。"
+  ],
+  "updatedAt": "2026-04-26T21:21:20+08:00"
+}

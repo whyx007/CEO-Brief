@@ -1,0 +1,56 @@
+# 依赖库 (最重要，防止读取数万个文件)
+node_modules/
+vendor/
+.venv/
+env/
+venv/
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+.nuxt/
+bin/
+obj/
+
+# 数据库与缓存
+*.db
+*.sqlite
+.cache/
+.eslintcache
+.stylelintcache
+
+# 版本控制系统
+.git/
+.svn/
+.hg/
+
+# 敏感信息 (极其重要)
+.env
+.env.*
+*.pem
+*.key
+.aws/
+.config/
+
+# 巨大的日志文件
+*.log
+logs/
+tmp/
+
+# 媒体文件 (Claude 无法通过此工具处理图片/视频)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.mp4
+*.pdf
+*.zip
+*.tar.gz
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp

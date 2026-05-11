@@ -1,0 +1,23 @@
+{
+  "code": 99991672,
+  "msg": "Access denied. One of the following scopes is required: [drive:drive, drive:drive:readonly, space:document:retrieve].应用尚未开通所需的应用身份权限：[drive:drive, drive:drive:readonly, space:document:retrieve]，点击链接申请并开通任一权限即可：https://open.feishu.cn/app/cli_a9fbc35a19f95bc6/auth?q=drive:drive,drive:drive:readonly,space:document:retrieve&op_from=openapi&token_type=tenant",
+  "error": {
+    "message": "Refer to the documentation to fix the error: https://open.feishu.cn/document/uAjLw4CM/ugTN1YjL4UTN24CO1UjN/trouble-shooting/how-to-fix-the-99991672-error",
+    "log_id": "20260320104608C91CAA16F4FEBB3C78E5",
+    "troubleshooter": "排查建议查看(Troubleshooting suggestions): https://open.feishu.cn/search?from=openapi&log_id=20260320104608C91CAA16F4FEBB3C78E5&code=99991672&method_id=7106785700817272860",
+    "permission_violations": [
+      {
+        "type": "action_scope_required",
+        "subject": "drive:drive"
+      },
+      {
+        "type": "action_scope_required",
+        "subject": "drive:drive:readonly"
+      },
+      {
+        "subject": "space:document:retrieve",
+        "type": "action_scope_required"
+      }
+    ]
+  }
+}

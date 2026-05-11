@@ -1,0 +1,21 @@
+{
+  "jobId": "20260428-185421-8493cb",
+  "status": "failed",
+  "message": "竞情分析生成失败。",
+  "submittedAt": "2026-04-28T18:54:21+08:00",
+  "updatedAt": "2026-04-28T19:17:17+08:00",
+  "pythonExecutable": "D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\python.exe",
+  "pid": 6540,
+  "startedAt": "2026-04-28T18:54:21+08:00",
+  "runnerStartedAt": "2026-04-28T18:54:32+08:00",
+  "finishedAt": "2026-04-28T19:17:17+08:00",
+  "error": "'gbk' codec can't encode character '\\U0001f4be' in position 0: illegal multibyte sequence",
+  "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\Administrator\\.openclaw\\workspace\\finance-postinvest-ai-platform\\ceo-brief\\modules\\competitive_analysis\\job_runner.py\", line 88, in main\n    competitive_main()\n  File \"C:\\Users\\Administrator\\.openclaw\\workspace\\finance-postinvest-ai-platform\\ceo-brief\\modules\\competitive_analysis\\main.py\", line 560, in main\n    save_crew_result(checkpoint_manager, result)\n  File \"C:\\Users\\Administrator\\.openclaw\\workspace\\finance-postinvest-ai-platform\\ceo-brief\\modules\\competitive_analysis\\resumable_executor.py\", line 69, in save_crew_result\n    console.print(\"[green]💾 执行结果已保存到checkpoint[/green]\")\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\console.py\", line 1697, in print\n    with self:\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\console.py\", line 870, in __exit__\n    self._exit_buffer()\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\console.py\", line 826, in _exit_buffer\n    self._check_buffer()\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\console.py\", line 2042, in _check_buffer\n    self._write_buffer()\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\console.py\", line 2078, in _write_buffer\n    legacy_windows_render(buffer, LegacyWindowsTerm(self.file))\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\_windows_renderer.py\", line 17, in legacy_windows_render\n    term.write_styled(text, style)\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\_win32_console.py\", line 441, in write_styled\n    self.write_text(text)\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\rich\\_win32_console.py\", line 402, in write_text\n    self.write(text)\n  File \"D:\\ProgramData\\miniconda3\\envs\\tianta_ci\\Lib\\site-packages\\crewai\\llm.py\", line 120, in write\n    return self._original_stream.write(s)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'gbk' codec can't encode character '\\U0001f4be' in position 0: illegal multibyte sequence\n",
+  "previousLatest": {
+    "id": "20260419_weekly",
+    "folder": "20260419_weekly",
+    "reportFile": "C:\\Users\\Administrator\\.openclaw\\workspace\\finance-postinvest-ai-platform\\ceo-brief\\modules\\competitive_analysis\\output\\20260419_weekly\\All_Companies_Data_Backup.md",
+    "rawDataFile": "C:\\Users\\Administrator\\.openclaw\\workspace\\finance-postinvest-ai-platform\\ceo-brief\\modules\\competitive_analysis\\output\\20260419_weekly\\raw_data.json",
+    "updatedAt": "2026-04-28T18:54:32+08:00"
+  }
+}

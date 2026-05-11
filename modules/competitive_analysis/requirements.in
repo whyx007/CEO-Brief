@@ -1,0 +1,10 @@
+crewai[tools]
+crewai-tools
+langchain-openai
+pydantic
+requests
+python-dotenv
+rich
+litellm
+duckduckgo-search
+reportlab

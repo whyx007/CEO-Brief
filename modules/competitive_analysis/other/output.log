@@ -1,0 +1,26 @@
++--------------------------------------------------+
+| Traceback (most recent call last):
+  File "E:\Code\tianta_ci-bocha-cao\main.py", line 430, in <module>
+    main()
+  File "E:\Code\tianta_ci-bocha-cao\main.py", line 105, in main
+    console.print(Panel.fit(
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\console.py", line 1697, in print
+    with self:
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\console.py", line 870, in __exit__
+    self._exit_buffer()
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\console.py", line 826, in _exit_buffer
+    self._check_buffer()
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\console.py", line 2042, in _check_buffer
+    self._write_buffer()
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\console.py", line 2078, in _write_buffer
+    legacy_windows_render(buffer, LegacyWindowsTerm(self.file))
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\_windows_renderer.py", line 17, in legacy_windows_render
+    term.write_styled(text, style)
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\_win32_console.py", line 441, in write_styled
+    self.write_text(text)
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\rich\_win32_console.py", line 402, in write_text
+    self.write(text)
+  File "D:\ProgramData\miniconda3\envs\tianta_ci\Lib\site-packages\crewai\llm.py", line 120, in write
+    return self._original_stream.write(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f6f0' in position 0: illegal multibyte sequence

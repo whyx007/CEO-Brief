@@ -1,0 +1,5 @@
+venv/
+company-summary/
+__pycache__/
+*.pyc
+.git/
