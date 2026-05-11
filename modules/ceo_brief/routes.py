@@ -34,8 +34,8 @@ PROMPT_SETTINGS_FILE = MOCK_DIR / 'ceo-brief-prompt-settings.json'
 LATEST_RUN_FILE = DATA_DIR / 'latest-run.json'
 LATEST_MD_FILE = DATA_DIR / 'latest-brief.md'
 DEBUG_SNAPSHOT_FILE = DATA_DIR / 'latest-debug-snapshot.json'
-TARGET_UPDATES_FALLBACK_FILE = WORKSPACE_ROOT / 'tianta_ceo_target_updates.json'
-TARGET_WATCHLIST_FALLBACK_FILE = WORKSPACE_ROOT / 'tianta_target_watchlist.json'
+TARGET_UPDATES_FALLBACK_FILE = ROOT / 'mock' / 'tianta_ceo_target_updates.json'
+TARGET_WATCHLIST_FALLBACK_FILE = ROOT / 'mock' / 'tianta_target_watchlist.json'
 LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'deepseek').strip().lower()
 LLM_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-chat').strip()
 llm_client = DeepSeekClient()
@@ -108,18 +108,17 @@ def read_json_list(path: Path) -> list[Any]:
 
 def merge_target_fallbacks(today_payload: dict[str, Any]) -> dict[str, Any]:
     payload = dict(today_payload or {})
-    target_updates = payload.get('targetUpdates')
-    if not isinstance(target_updates, list) or not target_updates:
+    # Generated data has priority; only use fallback when pipeline produces nothing
+    existing_updates = payload.get('targetUpdates') if isinstance(payload.get('targetUpdates'), list) else []
+    if not existing_updates:
         fallback_updates = read_json_list(TARGET_UPDATES_FALLBACK_FILE)
         if fallback_updates:
             payload['targetUpdates'] = fallback_updates
 
     meta = payload.get('meta') if isinstance(payload.get('meta'), dict) else {}
-    watchlist = meta.get('targetWatchlist')
-    if not isinstance(watchlist, list) or not watchlist:
-        fallback_watchlist = read_json_list(TARGET_WATCHLIST_FALLBACK_FILE)
-        if fallback_watchlist:
-            meta['targetWatchlist'] = fallback_watchlist
+    fallback_watchlist = read_json_list(TARGET_WATCHLIST_FALLBACK_FILE)
+    if fallback_watchlist:
+        meta['targetWatchlist'] = fallback_watchlist
     payload['meta'] = meta
     return payload
 
@@ -342,12 +341,22 @@ def latest_debug_snapshot() -> dict[str, Any]:
 
 @router.get('/api/ceo-brief/settings/targets')
 def get_targets() -> dict[str, Any]:
-    return read_json(TARGET_SETTINGS_FILE)
+    settings = read_json(TARGET_SETTINGS_FILE)
+    watchlist = read_json_list(TARGET_WATCHLIST_FALLBACK_FILE)
+    if watchlist:
+        settings['watchlist'] = watchlist
+    return settings
 
 
 @router.put('/api/ceo-brief/settings/targets')
 def put_targets(payload: dict[str, Any]) -> dict[str, Any]:
-    write_json(TARGET_SETTINGS_FILE, payload or {})
+    if not payload:
+        payload = {}
+    # Save watchlist to its own file if present
+    watchlist = payload.pop('watchlist', None)
+    if watchlist is not None:
+        write_json(TARGET_WATCHLIST_FALLBACK_FILE, watchlist)
+    write_json(TARGET_SETTINGS_FILE, payload)
     return {'ok': True}
 
 
@@ -544,7 +553,7 @@ def generate_free_brief() -> dict[str, Any]:
         else:
             google_payload = {'queries': [], 'queryStats': [], 'items': []}
 
-        enable_searxng = free_news_pipeline.searxng.enabled and pipeline_mode != 'stable'
+        enable_searxng = free_news_pipeline.searxng.enabled
         if enable_searxng:
             searxng_payload = free_news_pipeline.collect_searxng_news(targets, limit_per_query=2)
         else:
@@ -553,9 +562,9 @@ def generate_free_brief() -> dict[str, Any]:
         merged_payload = free_news_pipeline.merge_and_dedup(
             rss_payload['items'],
             google_payload['items'],
-            searxng_payload['items'],
         )
         merged_items = merged_payload['items']
+        searxng_items = searxng_payload.get('items', [])
 
         policy_payload = free_news_pipeline.collect_policy_news(targets, limit_per_query=4)
         policy_ranked = policy_payload['items'][:15]
@@ -617,12 +626,15 @@ def generate_free_brief() -> dict[str, Any]:
                 policy_ranked,
                 policy_fallback,
             ).get('items', [])[:15]
-        ranked_items = free_news_pipeline.rank_for_targets(merged_items, targets, top_k=4)
-        enriched_items = free_news_pipeline.enrich_with_jina(ranked_items, top_k=jina_top_k)
+        rss_target_matches = free_news_pipeline.rank_for_targets(merged_items, targets, top_k=8)
+        searxng_target_matches = free_news_pipeline.rank_for_targets(searxng_items, targets, top_k=8)
+        target_candidates = free_news_pipeline.merge_and_dedup(rss_target_matches, searxng_target_matches).get('items', [])
+        enriched_items = free_news_pipeline.enrich_with_jina(target_candidates, top_k=jina_top_k)
         industry_focus_items = free_news_pipeline.enrich_with_jina(industry_focus_candidates[:15], top_k=jina_top_k)
 
         generated = build_ceo_brief_from_free_news(
             items=enriched_items,
+            target_updates_items=enriched_items,
             summary_text=None,
             existing_today=today_existing,
             policy_items=policy_ranked,
@@ -647,7 +659,9 @@ def generate_free_brief() -> dict[str, Any]:
 
         generated = merge_target_fallbacks(generated)
 
-        generated.setdefault('meta', {})['strictMatchCount'] = len(enriched_items)
+        generated.setdefault('meta', {})['targetMatchRssCount'] = len(rss_target_matches)
+        generated['meta']['targetMatchSearxngCount'] = len(searxng_target_matches)
+        generated['meta']['targetMatchTotalCount'] = len(target_candidates)
         generated['meta']['policyMatchCount'] = len(policy_ranked)
         generated['meta']['competitorMatchCount'] = len(competitor_ranked)
         generated['meta']['strictMode'] = True
@@ -682,13 +696,14 @@ def generate_free_brief() -> dict[str, Any]:
             'industryFocusNewsCount': len(industry_focus_generated),
             'policyNewsCount': len(generated.get('policyNews', [])),
             'competitorNewsCount': len(generated.get('competitorNews', [])),
-            'rankedItemsCount': len(ranked_items),
-            'enrichedItemsCount': len(enriched_items),
+            'rssTargetMatchesCount': len(rss_target_matches),
+            'searxngTargetMatchesCount': len(searxng_target_matches),
             'macroItemsCount': len(macro_items),
             'industryFocusItemsCount': len(industry_focus_items),
             'policyRankedCount': len(policy_ranked),
             'competitorRankedCount': len(competitor_ranked),
-            'firstRankedItem': ranked_items[0] if ranked_items else None,
+            'firstRssTargetMatch': rss_target_matches[0] if rss_target_matches else None,
+            'firstSearxngTargetMatch': searxng_target_matches[0] if searxng_target_matches else None,
             'firstMacroItem': macro_news_generated[0] if macro_news_generated else None,
             'firstIndustryFocusItem': industry_focus_generated[0] if industry_focus_generated else None,
         })
@@ -712,7 +727,7 @@ def generate_free_brief() -> dict[str, Any]:
             'newsCount': len(generated.get('macroEconomicNews', [])) + len(generated.get('industryFocusNews', [])),
             'policyNewsCount': len(generated.get('policyNews', [])),
             'competitorNewsCount': len(generated.get('competitorNews', [])),
-            'strictMatchCount': generated.get('meta', {}).get('strictMatchCount', 0),
+            'targetMatchTotalCount': generated.get('meta', {}).get('targetMatchTotalCount', 0),
             'mergedItemCount': generated.get('meta', {}).get('mergedItemCount', 0),
             'countsByOrigin': generated.get('meta', {}).get('countsByOrigin', {}),
             'llmSummary': generated.get('llmSummary'),

@@ -15,7 +15,8 @@
           <nav class="nav nav-inline nav-vertical">
             <button class="nav-btn active" data-tab="dashboard">CEO参阅</button>
             <button class="nav-btn" data-tab="company-query">企业查询</button>
-            <button class="nav-btn" data-tab="competitive-analysis">竞情分析</button>
+            <!-- 竞情分析已屏蔽 -->
+            <!--<button class="nav-btn" data-tab="competitive-analysis">竞情分析</button>-->
           </nav>
         </div>
         <div class="sidebar-footer muted">
@@ -36,8 +37,7 @@
             <div class="topbar-right">
               <div id="weatherBlock" class="weather-inline empty">暂无内容</div>
               <div class="actions topbar-actions">
-                <button id="refreshBtn" class="secondary">刷新</button>
-                <button id="generateBtn" class="secondary">生成今日参阅</button>
+                <button id="debugGenerateBtn" class="secondary" title="调试：重新采集并生成当日参阅">🔧 刷新</button>
                 <button class="nav-btn icon-nav-btn" data-tab="settings" title="设置" aria-label="设置">
                   <span aria-hidden="true">⚙</span>
                 </button>
@@ -497,7 +497,7 @@
               </div>
             </article>
           </section>
-        </section>
+        </section>-->
 
         <section id="tab-settings" class="tab">
           <header class="page-header">
@@ -541,6 +541,10 @@
                 <label>
                   <span>Upstream / Downstream</span>
                   <textarea name="upstreamDownstream" rows="4"></textarea>
+                </label>
+                <label>
+                  <span>Watchlist（目标监控列表）</span>
+                  <textarea name="watchlist" rows="6" placeholder="来自 mock/tianta_target_watchlist.json，保存时同步更新"></textarea>
                 </label>
               </form>
             </article>

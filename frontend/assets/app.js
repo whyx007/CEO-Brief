@@ -587,7 +587,7 @@ function renderSettings() {
   const prompts = state.prompts || {};
   const targetsForm = $('targetsForm');
   if (targetsForm) {
-    ['companies', 'industries', 'keywords', 'regions', 'competitors', 'upstreamDownstream'].forEach((key) => {
+    ['companies', 'industries', 'keywords', 'regions', 'competitors', 'upstreamDownstream', 'watchlist'].forEach((key) => {
       if (targetsForm.elements[key]) {
         targetsForm.elements[key].value = arrayToTextarea(targets[key]);
       }
@@ -1527,6 +1527,7 @@ async function saveSettings() {
     industries: textareaToArray(targetsForm.elements.industries.value),
     keywords: textareaToArray(targetsForm.elements.keywords.value),
     regions: textareaToArray(targetsForm.elements.regions.value),
+    watchlist: textareaToArray(targetsForm.elements.watchlist.value),
     competitors: textareaToArray(targetsForm.elements.competitors.value),
     upstreamDownstream: textareaToArray(targetsForm.elements.upstreamDownstream.value),
     updatedAt: new Date().toISOString(),
@@ -1612,8 +1613,9 @@ async function init() {
   bindClick('resetPromptsBtn', '重置中...', resetPrompts);
   bindClick('companyQueryStatusBtn', '读取中...', loadCompanyQueryStatus);
   bindClick('companyQuerySearchBtn', '查询中...', () => runCompanyQuerySearch());
-  bindClick('competitiveAnalysisRefreshBtn', '读取中...', loadCompetitiveAnalysis);
-  bindClick('competitiveAnalysisGenerateBtn', '生成中...', generateCompetitiveAnalysis);
+  // 竞情分析已屏蔽
+  // bindClick('competitiveAnalysisRefreshBtn', '读取中...', loadCompetitiveAnalysis);
+  // bindClick('competitiveAnalysisGenerateBtn', '生成中...', generateCompetitiveAnalysis);
   bindClick('reloadCompetitiveSettingsBtn', '读取中...', loadCompetitiveAnalysis);
   bindClick('saveCompetitiveSettingsBtn', '保存中...', saveCompetitiveSettings);
 
@@ -1670,7 +1672,8 @@ async function init() {
   const dashboardResult = await loadDashboard().then(() => null).catch((error) => error);
   const settingsResult = await loadSettings().then(() => null).catch((error) => error);
   const companyQueryResult = await loadCompanyQueryStatus().then(() => null).catch((error) => error);
-  const competitiveResult = await loadCompetitiveAnalysis().then(() => null).catch((error) => error);
+  // 竞情分析已屏蔽
+  const competitiveResult = null;
 
   // 数据加载后延迟重绘企业浏览（确保DOM就绪），多次尝试确保生效
   const retryRender = () => {
