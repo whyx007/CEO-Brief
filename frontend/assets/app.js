@@ -561,7 +561,12 @@ function renderNewsList(containerId, countId, items, renderItem) {
 }
 
 function renderLatestRun() {
-  return;
+  const el = $('latestGenerateTime');
+  if (!el) return;
+  const run = state.latestRun || {};
+  const today = state.today || {};
+  const ts = today.generatedAt || run.generatedAt || '';
+  el.textContent = ts ? `最后更新：${ts}` : '';
 }
 
 function renderLatestBrief() {
@@ -1507,9 +1512,27 @@ function scheduleCompetitiveJobRefresh() {
 }
 
 async function generateBasic() {
-  const result = await api('/api/ceo-brief/generate/free', { method: 'POST' });
-  await loadDashboard();
-  showMessage(`今日参阅生成完成,共 ${result.newsCount ?? 0} 条新闻`);
+  const btn = $('debugGenerateBtn');
+  if (!btn) return;
+  
+  // Immediate feedback
+  btn.disabled = true;
+  btn.textContent = '⏳ 生成中，预计3-5分钟...';
+  showMessage('正在抓取最新新闻并生成参阅，请稍候...', 'info');
+  
+  try {
+    const result = await api('/api/ceo-brief/generate/free', { method: 'POST' });
+    await loadDashboard();
+    const newsCount = result.newsCount ?? 0;
+    const targetCount = result.targetMatchTotalCount ?? 0;
+    showMessage(`✅ 生成完成！产经 ${newsCount} 条，目标匹配 ${targetCount} 条`);
+  } catch (error) {
+    showMessage(`❌ 生成失败：${error.message || '网络超时，请稍后重试'}`, 'error');
+    console.error('generate error:', error);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔧 刷新';
+  }
 }
 
 async function generateFree() {
@@ -1606,8 +1629,7 @@ async function init() {
   setupTabs();
   setupSortControls();
 
-  bindClick('refreshBtn', '刷新中...', loadDashboard);
-  bindClick('generateBtn', '生成中...', generateBasic);
+  bindClick('debugGenerateBtn', '生成中...', generateBasic);
   bindClick('reloadSettingsBtn', '读取中...', loadSettings);
   bindClick('saveSettingsBtn', '保存中...', saveSettings);
   bindClick('resetPromptsBtn', '重置中...', resetPrompts);

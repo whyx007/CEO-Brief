@@ -1095,6 +1095,7 @@ label span {
 }
 .message.success { background: rgba(16, 185, 129, 0.12); color: #c7ffea; }
 .message.error { background: rgba(239, 68, 68, 0.12); color: #ffd4d4; }
+.message.info { background: rgba(59, 130, 246, 0.12); color: #c7dbff; }
 .tab { display: none; }
 .tab.active { display: block; }
 .hidden { display: none; }
