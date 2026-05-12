@@ -52,6 +52,11 @@ class FreeNewsPipeline:
             result.append(item)
             result.append(f'{item} 商业航天')
 
+        # Add watchlist companies — each gets its own query
+        watchlist = target_settings.get('watchlist', []) or []
+        for company in watchlist[:20]:
+            result.append(company)
+
         space_hints = ['航天', '卫星', '火箭', '遥感', '测运控', '星座']
         if any(any(hint in str(v) for hint in space_hints) for v in (companies + industries + keywords + competitors + upstream_downstream)):
             result.extend(SPACE_QUERY_HINTS)
@@ -63,7 +68,7 @@ class FreeNewsPipeline:
             if normalized and normalized not in seen:
                 seen.add(normalized)
                 dedup.append(normalized)
-        return dedup[:24]
+        return dedup[:32]
 
     def collect_rss(self, limit_per_feed: int = 5, extra_sources: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         items: list[dict[str, Any]] = []
@@ -140,7 +145,7 @@ class FreeNewsPipeline:
         if not self.searxng.enabled:
             return {'queries': queries, 'queryStats': [], 'items': [], 'enabled': False}
 
-        for query in queries[:12]:
+        for query in queries[:20]:
             try:
                 payload = self.searxng.search(query)
                 results = payload.get('results', [])[:limit_per_query]
@@ -166,7 +171,7 @@ class FreeNewsPipeline:
                 query_stats.append({'query': query, 'fetchedCount': len(results), 'keptCount': kept, 'ok': True})
             except Exception as exc:
                 query_stats.append({'query': query, 'fetchedCount': 0, 'keptCount': 0, 'ok': False, 'error': str(exc)})
-        return {'queries': queries[:12], 'queryStats': query_stats, 'items': items, 'enabled': True}
+        return {'queries': queries[:20], 'queryStats': query_stats, 'items': items, 'enabled': True}
 
     def collect_policy_news(self, target_settings: dict[str, Any], limit_per_query: int = 3, max_days: int = 2) -> dict[str, Any]:
         queries = ['伊朗 冲突', '俄乌 冲突', '中东 局势', '国际 时政', '国务院 最新 政策']
