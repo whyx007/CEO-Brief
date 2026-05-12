@@ -112,11 +112,11 @@ def merge_target_fallbacks(today_payload: dict[str, Any]) -> dict[str, Any]:
     watchlist = read_json_list(TARGET_WATCHLIST_FALLBACK_FILE)
     existing_updates = payload.get('targetUpdates') if isinstance(payload.get('targetUpdates'), list) else []
     
-    # Only keep items that mention a watchlist company
+    # Only keep items that mention a watchlist company (check title, summary, matchedTargets)
     if watchlist:
         existing_updates = [
             item for item in existing_updates
-            if any(company in ' '.join([str(item.get(k) or '') for k in ['title','summary','content','matchedTargets']]) for company in watchlist)
+            if any(company in ' '.join([str(item.get(k) or '') for k in ['title','summary','content','matchedTargets','source']]) for company in watchlist)
         ]
     
     if len(existing_updates) < 3:
@@ -563,8 +563,29 @@ def generate_free_brief() -> dict[str, Any]:
             google_payload = {'queries': [], 'queryStats': [], 'items': []}
 
         enable_searxng = free_news_pipeline.searxng.enabled
+
+        # Always search Watchlist companies via Google News (free RSS, no API key)
+        watchlist_companies = read_json_list(TARGET_WATCHLIST_FALLBACK_FILE)
+        google_watchlist_items: list[dict[str, Any]] = []
+        if watchlist_companies:
+            google_watchlist_seen: set[str] = set()
+            for company in watchlist_companies[:16]:
+                try:
+                    result = free_news_pipeline.rss.parse_google_news(company, limit=2)
+                    for item in result.get('items', []):
+                        url = str(item.get('url') or '').strip()
+                        if url and url not in google_watchlist_seen:
+                            google_watchlist_seen.add(url)
+                            google_watchlist_items.append({**item, 'sourceType': 'google-news-rss', 'matchedTargets': [company]})
+                except Exception:
+                    continue
+        google_watchlist_payload = {'items': google_watchlist_items}
+
         if enable_searxng:
-            searxng_payload = free_news_pipeline.collect_searxng_news(targets, limit_per_query=2)
+            searxng_targets = dict(targets)
+            if watchlist_companies:
+                searxng_targets['watchlist'] = watchlist_companies
+            searxng_payload = free_news_pipeline.collect_searxng_news(searxng_targets, limit_per_query=2)
         else:
             searxng_payload = {'queries': [], 'queryStats': [], 'items': [], 'enabled': False}
 
@@ -637,7 +658,19 @@ def generate_free_brief() -> dict[str, Any]:
             ).get('items', [])[:15]
         rss_target_matches = free_news_pipeline.rank_for_targets(merged_items, targets, top_k=8)
         searxng_target_matches = free_news_pipeline.rank_for_targets(searxng_items, targets, top_k=8)
-        target_candidates = free_news_pipeline.merge_and_dedup(rss_target_matches, searxng_target_matches).get('items', [])
+        # Rank Google News watchlist results — these are already target-specific by design
+        google_watchlist_items = google_watchlist_payload.get('items', [])
+        # Rank Google News watchlist results — add all watchlist companies to ranking targets
+        ranking_targets = dict(targets)
+        if watchlist_companies:
+            ranking_targets['watchlist_companies'] = watchlist_companies
+            existing_competitors = list(ranking_targets.get('competitors', []))
+            for c in watchlist_companies:
+                if c not in existing_competitors:
+                    existing_competitors.append(c)
+            ranking_targets['competitors'] = existing_competitors
+        google_watchlist_matches = free_news_pipeline.rank_for_targets(google_watchlist_items, ranking_targets, top_k=16)
+        target_candidates = free_news_pipeline.merge_and_dedup(rss_target_matches, searxng_target_matches, google_watchlist_matches, max_days=7).get('items', [])
         enriched_items = free_news_pipeline.enrich_with_jina(target_candidates, top_k=jina_top_k)
         industry_focus_items = free_news_pipeline.enrich_with_jina(industry_focus_candidates[:15], top_k=jina_top_k)
 
@@ -670,6 +703,7 @@ def generate_free_brief() -> dict[str, Any]:
 
         generated.setdefault('meta', {})['targetMatchRssCount'] = len(rss_target_matches)
         generated['meta']['targetMatchSearxngCount'] = len(searxng_target_matches)
+        generated['meta']['targetMatchGoogleCount'] = len(google_watchlist_matches)
         generated['meta']['targetMatchTotalCount'] = len(target_candidates)
         generated['meta']['policyMatchCount'] = len(policy_ranked)
         generated['meta']['competitorMatchCount'] = len(competitor_ranked)
