@@ -1709,3 +1709,18 @@ label span {
   .calendar-weekdays, .calendar-grid { gap: 6px; }
   .calendar-day { min-height: 64px; }
 }
+
+/* RSS status list */
+.rss-status-list { margin-top: 8px; }
+.rss-status-list.empty { color: var(--muted); font-style: italic; padding: 12px 0; }
+.rss-status-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.rss-status-row .badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: rgba(255,255,255,0.08); color: var(--muted); }
+.rss-status-row .badge.ok { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+.rss-status-row .badge.fail { background: rgba(239,68,68,0.15); color: #fca5a5; }
+.rss-status-row .name { flex: 0 0 auto; min-width: 140px; }
+.rss-status-row .url { flex: 1; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rss-status-row .error { flex: 1; font-size: 11px; color: #fca5a5; }
+.rss-status-summary { font-size: 13px; margin-bottom: 8px; }
+.rss-status-summary .valid { color: #6ee7b7; }
+.rss-status-summary .invalid { color: #fca5a5; }
+
