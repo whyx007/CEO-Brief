@@ -1586,6 +1586,48 @@ async function resetPrompts() {
   showMessage('Prompt 已恢复默认');
 }
 
+async function testRssFeeds() {
+  const listEl = $('rssStatusList');
+  if (!listEl) return;
+  listEl.className = 'rss-status-list';
+  listEl.textContent = '正在测试 RSS 源...';
+  
+  try {
+    const result = await api('/api/ceo-brief/settings/rss-status');
+    const sources = result.sources || [];
+    if (!sources.length) {
+      listEl.className = 'rss-status-list empty';
+      listEl.textContent = '无 RSS 源';
+      return;
+    }
+    
+    const validCount = result.valid || 0;
+    const invalidCount = result.invalid || 0;
+    
+    let html = '<div class="rss-status-summary">';
+    html += '<span class="valid">✓ 有效 ' + validCount + '</span> &nbsp; ';
+    html += '<span class="invalid">✗ 无效 ' + invalidCount + '</span>';
+    html += '</div>';
+    
+    for (const s of sources) {
+      const badge = s.valid ? '<span class="badge ok">✓</span>' : '<span class="badge fail">✗</span>';
+      html += '<div class="rss-status-row">';
+      html += badge;
+      html += '<span class="badge">' + (s.type || '') + '</span>';
+      html += '<span class="name">' + (s.name || '') + '</span>';
+      html += s.valid
+        ? '<span class="url">' + (s.url || '') + '</span>'
+        : '<span class="error">' + (s.error || '连接失败') + '</span>';
+      html += '</div>';
+    }
+    listEl.className = 'rss-status-list';
+    listEl.innerHTML = html;
+  } catch (e) {
+    listEl.className = 'rss-status-list empty';
+    listEl.textContent = '测试失败: ' + (e.message || '网络错误');
+  }
+}
+
 function setupTabs() {
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     if (!btn.dataset.tab) return;
@@ -1633,6 +1675,7 @@ async function init() {
   bindClick('reloadSettingsBtn', '读取中...', loadSettings);
   bindClick('saveSettingsBtn', '保存中...', saveSettings);
   bindClick('resetPromptsBtn', '重置中...', resetPrompts);
+  bindClick('testRssBtn', '测试中...', testRssFeeds);
   bindClick('companyQueryStatusBtn', '读取中...', loadCompanyQueryStatus);
   bindClick('companyQuerySearchBtn', '查询中...', () => runCompanyQuerySearch());
   // 竞情分析已屏蔽

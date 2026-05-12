@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from services.rss_client import DEFAULT_RSS_SOURCES
 from services.llm_client import DeepSeekClient
 from services.news_pipeline import NewsPipeline
 from services.free_news_pipeline import FreeNewsPipeline
@@ -384,6 +385,48 @@ def put_prompts(payload: dict[str, Any]) -> dict[str, Any]:
 def reset_prompts() -> dict[str, Any]:
     write_json(PROMPT_SETTINGS_FILE, DEFAULT_PROMPT_SETTINGS)
     return {'ok': True, 'data': DEFAULT_PROMPT_SETTINGS}
+
+
+@router.get('/api/ceo-brief/settings/rss-status')
+def rss_status() -> dict[str, Any]:
+    """Test all RSS feeds and return their status (valid/invalid)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from services.rsshub_sources import build_rsshub_sources
+
+    # Collect all sources
+    sources: list[dict[str, Any]] = []
+    for s in DEFAULT_RSS_SOURCES:
+        sources.append({'name': s['name'], 'url': s['url'], 'type': 'RSS'})
+    for s in SPACE_RSS_SOURCES:
+        sources.append({'name': s['name'], 'url': s['url'], 'type': 'SPACE'})
+    if env_flag('CEO_BRIEF_ENABLE_RSSHUB', default=True):
+        for s in build_rsshub_sources():
+            sources.append({'name': s['name'], 'url': s['url'], 'type': 'RSSHub'})
+
+    def test_one(source: dict[str, Any]) -> dict[str, Any]:
+        try:
+            items = free_news_pipeline.rss.parse_feed(source['url'], source_name=source['name'], limit=1)
+            errors = sum(1 for i in items if i.get('title'))
+            return {'name': source['name'], 'url': source['url'], 'type': source['type'], 'valid': True, 'count': len(items)}
+        except Exception as e:
+            return {'name': source['name'], 'url': source['url'], 'type': source['type'], 'valid': False, 'error': str(e)[:120]}
+
+    results: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(test_one, s): s for s in sources}
+        for future in as_completed(futures, timeout=30):
+            results.append(future.result())
+
+    results.sort(key=lambda x: (0 if x['valid'] else 1, x['name']))
+    valid_count = sum(1 for r in results if r['valid'])
+    invalid_count = len(results) - valid_count
+    return {
+        'ok': True,
+        'total': len(results),
+        'valid': valid_count,
+        'invalid': invalid_count,
+        'sources': results,
+    }
 
 
 @router.get('/api/ceo-brief/llm/status')
