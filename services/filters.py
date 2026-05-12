@@ -51,9 +51,11 @@ EXCLUDE_MACRO_HINTS = [
 ]
 
 DEFAULT_SPACE_INDUSTRY_HINTS = [
-    '商业航天', '卫星', '卫星互联网', '火箭', '发射', '遥感', '测运控', '星座', '地面站', '测控',
+    '商业航天', '卫星互联网', '火箭', '发射', '遥感', '测运控', '星座', '地面站', '测控',
     '航天器', '载荷', '卫星制造', '轨道', '低轨', '空间基础设施',
-    '中科天塔', '星载', '激光通信', '通信终端', '天地一体'
+    '中科天塔', '星载', '激光通信', '通信终端', '天地一体',
+    '卫星测控', '卫星应用', '航天测运控', '低轨星座', '星链', '卫星通信', '航天发射',
+    '固体火箭', '液体火箭', '可回收火箭', '商业发射'
 ]
 
 SPACE_SOURCE_ALLOWLIST = {
@@ -123,12 +125,25 @@ def filter_space_industry_items(items: list[dict[str, Any]], hints: list[str] | 
     allowlisted = [
         item for item in items
         if str(item.get('source') or '').strip() in SPACE_SOURCE_ALLOWLIST
+        and any(h.lower() in ' '.join([str(item.get('title') or ''), str(item.get('content') or '')]).lower() for h in ['satellite', 'space', '航天', '火箭', 'orbit', 'launch', 'Mars', 'moon', 'NASA', 'ESA', 'starship'])
+    ]
+    # Exclude macro-financial content that accidentally matches space hints
+    MACRO_FINANCE_EXCLUDE = [
+        '沪指', '科创板', '创业板', 'A股', 'ETF', '基金', '股票', 'IPO', '涨', '跌',
+        '券商', '证券', '投行', '千亿', '市值', '买', '卖', '交易', '技术分析',
+        '投资就变', '行情', '暴涨', '跌停', '涨停', 'K线', 'MA', 'MACD',
+        '中信建投', '中信证券', '华泰证券', '国泰君安', '中金公司'
     ]
     seen_urls: set[str] = set()
     result: list[dict[str, Any]] = []
     for item in [*keyword_matched, *allowlisted]:
         url = str(item.get('url') or '').strip()
         if not url or url in seen_urls:
+            continue
+        title = str(item.get('title') or '')
+        content = str(item.get('content') or '')
+        # Skip if article is primarily about macro-finance
+        if any(h in (title + content) for h in MACRO_FINANCE_EXCLUDE):
             continue
         seen_urls.add(url)
         result.append(item)

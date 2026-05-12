@@ -108,9 +108,18 @@ def read_json_list(path: Path) -> list[Any]:
 
 def merge_target_fallbacks(today_payload: dict[str, Any]) -> dict[str, Any]:
     payload = dict(today_payload or {})
-    # Generated data has priority; only use fallback when pipeline produces nothing
+    # Filter target updates: only keep items mentioning watchlist companies
+    watchlist = read_json_list(TARGET_WATCHLIST_FALLBACK_FILE)
     existing_updates = payload.get('targetUpdates') if isinstance(payload.get('targetUpdates'), list) else []
-    if not existing_updates:
+    
+    # Only keep items that mention a watchlist company
+    if watchlist:
+        existing_updates = [
+            item for item in existing_updates
+            if any(company in ' '.join([str(item.get(k) or '') for k in ['title','summary','content','matchedTargets']]) for company in watchlist)
+        ]
+    
+    if len(existing_updates) < 3:
         fallback_updates = read_json_list(TARGET_UPDATES_FALLBACK_FILE)
         if fallback_updates:
             payload['targetUpdates'] = fallback_updates
