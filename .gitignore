@@ -29,3 +29,4 @@ mock/tianta_target_watchlist.json
 # System
 .DS_Store
 Thumbs.db
+.claude/
