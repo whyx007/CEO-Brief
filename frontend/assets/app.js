@@ -443,27 +443,11 @@ function renderToday() {
   try {
     const data = state.today || {};
     const meta = data.meta || {};
-    const strictEmpty = Boolean(meta.strictMode) && (meta.strictMatchCount ?? data.industrialNews?.length ?? 0) === 0;
-
     const llmSummaryEl = $('llmSummary');
     if (llmSummaryEl) {
       const llmSummary = String(data.llmSummary || '').trim();
       llmSummaryEl.textContent = llmSummary || '暂无内容';
       llmSummaryEl.className = llmSummary ? 'markdown-block' : 'markdown-block empty';
-    }
-
-    const strictNoticeEl = $('strictModeNotice');
-    if (strictNoticeEl) {
-      if (strictEmpty) {
-        strictNoticeEl.className = 'message error';
-        strictNoticeEl.textContent = '严格匹配已启用，当前无高相关结果。';
-      } else if (meta.strictMode) {
-        strictNoticeEl.className = 'message success';
-        strictNoticeEl.textContent = `严格匹配已启用:高相关 ${meta.strictMatchCount ?? (data.industrialNews?.length || 0)} 条,政策 ${meta.policyMatchCount ?? 0} 条,竞对/产业链 ${meta.competitorMatchCount ?? 0} 条。`;
-      } else {
-        strictNoticeEl.className = 'message hidden';
-        strictNoticeEl.textContent = '';
-      }
     }
 
     const weather = data.weather;
