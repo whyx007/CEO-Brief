@@ -457,7 +457,7 @@ function renderToday() {
     if (strictNoticeEl) {
       if (strictEmpty) {
         strictNoticeEl.className = 'message error';
-        strictNoticeEl.textContent = '今日未检索到符合当前目标条件的高相关结果。系统已启用严格匹配,未再回退展示泛商业新闻。建议扩大目标词、补充竞对/产业链词,或增强航天相关召回 query。';
+        strictNoticeEl.textContent = '严格匹配已启用，当前无高相关结果。';
       } else if (meta.strictMode) {
         strictNoticeEl.className = 'message success';
         strictNoticeEl.textContent = `严格匹配已启用:高相关 ${meta.strictMatchCount ?? (data.industrialNews?.length || 0)} 条,政策 ${meta.policyMatchCount ?? 0} 条,竞对/产业链 ${meta.competitorMatchCount ?? 0} 条。`;
