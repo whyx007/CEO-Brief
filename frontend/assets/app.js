@@ -28,7 +28,7 @@ const state = {
 
 const DAILY_NOTE_STORAGE_KEY = 'ceo-brief-daily-notes-v1';
 const COMPANY_QUERY_HISTORY_KEY = 'ceo-brief-company-query-history-v1';
-const COMPANY_QUERY_HISTORY_LIMIT = 12;
+const COMPANY_QUERY_HISTORY_LIMIT = 5;
 
 const $ = (id) => document.getElementById(id);
 const setText = (id, value) => {
@@ -942,8 +942,8 @@ function renderCompanyProfileCard(item) {
   const titleHighlighted = highlightQuery(item?.title || raw['公司名称'] || '未命名企业', state.companyQueryLastQuery);
   const websiteUrl = companyWebsiteUrl(item);
   const titleLink = websiteUrl && websiteUrl !== '#'
-    ? `<a class="company-name-link" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noreferrer noopener">${titleHighlighted}</a>`
-    : `<span class="company-name-link disabled">${titleHighlighted}</span>`;
+    ? `<a class="company-name-link" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noreferrer noopener">官网首页 ↗</a>`
+    : `<span class="company-name-link disabled">无官网信息</span>`;
   const tech = highlightedCompanyField(raw, '核心技术');
   const product = highlightedCompanyField(raw, '产品');
   const maturity = highlightedCompanyField(raw, '技术成熟度');
@@ -969,7 +969,6 @@ function renderCompanyProfileCard(item) {
       <div class="company-profile-head">
         <div>
           <h4>${titleLink}</h4>
-          <div class="card-meta compact"><span>企业画像</span><span>${escapeHtml(item?.source || 'company-info.xlsx')}</span></div>
         </div>
         ${tags.length ? `<div class="tags">${tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
       </div>
