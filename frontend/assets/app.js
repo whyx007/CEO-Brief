@@ -1,7 +1,6 @@
 const state = {
   today: null,
-  latestRun: null,
-  latestBrief: null,
+
   marketSnapshot: null,
   fxSnapshot: null,
   targets: null,
@@ -502,16 +501,6 @@ function renderToday() {
       tagFilter: (tag) => !['客户动态', '竞争对手动态', '目标', '行业机会', '中科天塔动态'].includes(tag),
     }));
 
-    renderNewsList('todoList', 'todoCount', data.todoItems, (items) => items.map((item) => `
-      <div class="card-item">
-        <h4>${escapeHtml(item?.content || '-')}</h4>
-        <div class="card-meta">
-          <span class="priority ${escapeHtml((item?.priority || 'low').toLowerCase())}">${escapeHtml(item?.priority || 'low')}</span>
-        </div>
-        ${item?.reason ? `<div class="card-summary">触发原因:${escapeHtml(item.reason)}</div>` : ''}
-      </div>
-    `).join(''));
-
     if (!state.selectedNoteDate) {
       state.selectedNoteDate = data.date || formatDateKey(new Date());
     }
@@ -530,15 +519,14 @@ function renderToday() {
 function renderNewsList(containerId, countId, items, renderItem) {
   const list = Array.isArray(items) ? items : [];
   setText(countId, String(list.length));
-  if (containerId === 'todoList') setText('todoCountBottom', String(list.length));
   const container = $(containerId);
   if (!container) return;
   if (!list.length) {
-    container.className = containerId === 'todoList' ? 'note-ai-list empty' : 'list reader-list empty';
+    container.className = 'list reader-list empty';
     container.textContent = '暂无数据';
     return;
   }
-  container.className = containerId === 'todoList' ? 'note-ai-list' : 'list reader-list';
+  container.className = 'list reader-list';
   try {
     const html = renderItem(list);
     container.innerHTML = html || list.map((item) => `
@@ -558,22 +546,6 @@ function renderNewsList(containerId, countId, items, renderItem) {
       </div>
     `).join('');
   }
-}
-
-function renderLatestRun() {
-  const el = $('latestGenerateTime');
-  if (!el) return;
-  const run = state.latestRun || {};
-  const today = state.today || {};
-  const ts = today.generatedAt || run.generatedAt || '';
-  el.textContent = ts ? `最后更新：${ts}` : '';
-}
-
-function renderLatestBrief() {
-  const el = $('latestBriefMarkdown');
-  if (!el) return;
-  el.textContent = state.latestBrief?.content || '暂无内容';
-  el.className = state.latestBrief?.content ? 'markdown-preview' : 'markdown-preview empty';
 }
 
 function arrayToTextarea(arr) {
@@ -610,20 +582,14 @@ function renderSettings() {
 }
 
 async function loadDashboard() {
-  const [health, today, latestRun, latestBrief] = await Promise.all([
+  const [health, today] = await Promise.all([
     api('/health').catch(() => null),
     api('/api/ceo-brief/today').catch(() => null),
-    api('/api/ceo-brief/latest-run').catch(() => null),
-    api('/api/ceo-brief/latest-brief').catch(() => null),
   ]);
 
   renderHealth(health);
   state.today = today || {};
-  state.latestRun = latestRun;
-  state.latestBrief = latestBrief;
   renderToday();
-  renderLatestRun();
-  renderLatestBrief();
 
   if (!state.marketSnapshot) {
     state.marketSnapshot = { items: [], updatedAt: null, loading: true };
@@ -1711,9 +1677,7 @@ async function init() {
     });
   }
   bindClick('reloadMarkdownBtn', '读取中...', async () => {
-    state.latestBrief = await api('/api/ceo-brief/latest-brief');
-    renderLatestBrief();
-    showMessage('Markdown 正文已刷新');
+    showMessage('刷新中...请手动刷新页面');
   });
   bindClick('saveNoteBtn', '保存中...', async () => saveSelectedNote());
   bindClick('deleteNoteBtn', '删除中...', async () => deleteSelectedNote());
