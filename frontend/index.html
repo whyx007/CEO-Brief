@@ -210,14 +210,10 @@
           <header class="page-header">
             <div>
               <h2>企业查询</h2>
-              <p class="muted">与 CEO参阅 共用前端壳；后端实现独立在 modules/company_query/。</p>
+
             </div>
             <div class="actions topbar-actions">
-              <button id="companyQueryStatusBtn" class="secondary">读取状态</button>
               <button id="companyQuerySearchBtn" class="secondary">查询</button>
-              <button class="nav-btn icon-nav-btn" data-tab="company-query-settings" title="企业查询设置" aria-label="企业查询设置">
-                <span aria-hidden="true">⚙</span>
-              </button>
             </div>
           </header>
 
@@ -227,10 +223,7 @@
                 <h3>查询输入</h3>
               </div>
               <div class="form-grid single">
-                <label>
-                  <span>查询内容</span>
-                  <textarea id="companyQueryInput" rows="4" placeholder="输入企业名称、简称、关键词…"></textarea>
-                </label>
+                <input type="text" id="companyQueryInput" class="single-line-input" placeholder="查询内容，支持公司名 / 简称 / 技术关键词 / 场景词；Ctrl+Enter 可直接查询，企业查询模块已接入本地 Excel，可按企业名或关键词检索" />
               </div>
               <div class="company-query-toolbar">
                 <div>
@@ -239,9 +232,9 @@
                     <span class="muted small-meta">暂无历史查询</span>
                   </div>
                 </div>
-                <div class="muted small-meta">支持公司名 / 简称 / 技术关键词 / 场景词；Ctrl+Enter 可直接查询</div>
+
               </div>
-              <div class="message success" id="companyQueryStatusText" style="margin-top:12px">企业查询模块骨架已就绪。</div>
+              
             </article>
           </section>
 

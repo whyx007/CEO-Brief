@@ -688,7 +688,6 @@ async function runCompanyQuerySearch(queryOverride = '') {
   pushCompanyQueryHistory(query);
   renderCompanyQueryHistory();
   renderCompanyQuery();
-  showMessage(`企业查询已完成，共 ${result?.count ?? 0} 条结果`);
 }
 
 function highlightQuery(text, query) {
@@ -1130,7 +1129,6 @@ function currentCompanySummaryItem() {
 function renderCompanyQuery() {
   const meta = state.companyQueryStatus || {};
   const results = Array.isArray(state.companyQueryResults) ? state.companyQueryResults : [];
-  setText('companyQueryStatusText', meta?.message || '企业查询模块已就绪。');
   setText('companyQueryCount', String(results.length || 0));
   const sourceSelect = $('companyQuerySource');
   if (sourceSelect) sourceSelect.value = state.companyQuerySource || 'xlsx';
