@@ -46,13 +46,12 @@ def _normalize(value: Any) -> str:
 
 
 @lru_cache(maxsize=4)
-def load_xlsx_rows(xlsx_path: str) -> list[dict[str, str]]:
+def _load_xlsx_rows_cached(xlsx_path: str, mtime: float) -> list[dict[str, str]]:
     path = Path(xlsx_path)
     if not path.exists():
         return []
 
     with zipfile.ZipFile(path) as zf:
-        # Load shared strings
         shared_strings: list[str] = []
         if 'xl/sharedStrings.xml' in zf.namelist():
             ss_xml = ET.fromstring(zf.read('xl/sharedStrings.xml'))
@@ -60,7 +59,6 @@ def load_xlsx_rows(xlsx_path: str) -> list[dict[str, str]]:
                 t = si.find('a:t', NS)
                 shared_strings.append(t.text or '' if t is not None else '')
 
-        # Find first actual worksheet
         sheet_xml = None
         for candidate in sorted([n for n in zf.namelist() if n.startswith('xl/worksheets/sheet') and n.endswith('.xml')]):
             sheet_xml = ET.fromstring(zf.read(candidate))
@@ -92,6 +90,12 @@ def load_xlsx_rows(xlsx_path: str) -> list[dict[str, str]]:
         if any(record.values()):
             records.append(record)
     return records
+
+
+def load_xlsx_rows(xlsx_path: str) -> list[dict[str, str]]:
+    path = Path(xlsx_path)
+    mtime = path.stat().st_mtime if path.exists() else 0.0
+    return _load_xlsx_rows_cached(xlsx_path, mtime)
 
 
 def search_company_rows(xlsx_path: str, query: str, limit: int = 10) -> dict[str, Any]:
