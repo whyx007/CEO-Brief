@@ -1,0 +1,1 @@
+"""Industry chain analysis module."""

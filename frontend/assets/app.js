@@ -10,6 +10,9 @@ const state = {
   companyBrowseItems: [],
   companyQuerySource: 'xlsx',
   companyQueryLastQuery: '',
+  industryChainStatus: null,
+  industryChainResult: null,
+  industryChainMode: 'overview',
   competitiveStatus: null,
   competitiveReports: [],
   competitiveReport: null,
@@ -638,6 +641,165 @@ async function runCompanyQuerySearch(queryOverride = '') {
   pushCompanyQueryHistory(query);
   renderCompanyQueryHistory();
   renderCompanyQuery();
+}
+
+async function loadIndustryChainStatus() {
+  const status = await api('/api/industry-chain/status');
+  state.industryChainStatus = status;
+  renderIndustryChain();
+}
+
+function industryChainModeLabel(mode) {
+  return {
+    overview: '产业链全景',
+    'company-updown': '企业上下游',
+    opportunities: '合作机会探索',
+  }[mode] || mode;
+}
+
+function syncIndustryChainControls() {
+  const mode = $('industryChainMode')?.value || state.industryChainMode || 'overview';
+  state.industryChainMode = mode;
+  const input = $('industryChainInput');
+  const scopeWrap = $('industryChainScopeWrap');
+  if (scopeWrap) scopeWrap.style.display = mode === 'opportunities' ? 'block' : 'none';
+  if (!input) return;
+  input.disabled = mode === 'overview';
+  input.placeholder = mode === 'company-updown'
+    ? '输入企业名，例如：中科慧远视觉技术（洛阳）有限公司'
+    : mode === 'opportunities'
+      ? '输入子赛道 / 企业 / 场景，例如：光通信/光模块、半导体检测'
+      : '全景模式无需输入关键词';
+}
+
+async function runIndustryChainAnalysis(forceMode = '') {
+  const mode = forceMode || $('industryChainMode')?.value || state.industryChainMode || 'overview';
+  state.industryChainMode = mode;
+  syncIndustryChainControls();
+
+  let result;
+  if (mode === 'overview') {
+    result = await api('/api/industry-chain/overview?includeAnalysis=true');
+  } else if (mode === 'company-updown') {
+    const keyword = String($('industryChainInput')?.value || '').trim();
+    if (!keyword) {
+      showMessage('请输入企业名称', 'error');
+      return;
+    }
+    result = await api('/api/industry-chain/company-updown', {
+      method: 'POST',
+      body: JSON.stringify({ enterpriseName: keyword, includeAnalysis: true, limit: 30 }),
+    });
+  } else if (mode === 'opportunities') {
+    const scopeType = String($('industryChainScope')?.value || 'all');
+    const keyword = String($('industryChainInput')?.value || '').trim();
+    if (scopeType !== 'all' && !keyword) {
+      showMessage('当前探索范围需要输入关键词', 'error');
+      return;
+    }
+    result = await api('/api/industry-chain/opportunities', {
+      method: 'POST',
+      body: JSON.stringify({ scopeType, keyword, includeAnalysis: true, limit: 30 }),
+    });
+  } else {
+    showMessage(`暂不支持的产业链分析模式：${mode}`, 'error');
+    return;
+  }
+
+  state.industryChainResult = result;
+  renderIndustryChain();
+}
+
+function renderIndustryChainGraph(graph) {
+  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const edges = Array.isArray(graph?.edges) ? graph.edges : [];
+  if (!nodes.length && !edges.length) return '<div class="empty">暂无图谱</div>';
+  const visibleNodes = nodes.slice(0, 80);
+  const visibleEdges = edges.slice(0, 120);
+  return `
+    <div class="industry-chain-node-cloud">
+      ${visibleNodes.map((node) => `
+        <span class="industry-chain-node node-${escapeHtml(node.type || 'unknown')}">
+          <span class="industry-chain-node-type">${escapeHtml(node.groupLabel || node.type || '-')}</span>
+          ${escapeHtml(node.label || node.id || '-')}
+        </span>
+      `).join('')}
+    </div>
+    <div class="industry-chain-edge-list">
+      ${visibleEdges.map((edge) => {
+        const source = nodes.find((node) => node.id === edge.source)?.label || edge.source;
+        const target = nodes.find((node) => node.id === edge.target)?.label || edge.target;
+        return `
+          <div class="industry-chain-edge-row">
+            <span>${escapeHtml(source)}</span>
+            <b>${escapeHtml(edge.label || edge.type || '关联')}</b>
+            <span>${escapeHtml(target)}</span>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderIndustryChainTables(tables) {
+  const list = Array.isArray(tables) ? tables : [];
+  if (!list.length) return '<div class="empty">暂无数据</div>';
+  return list.map((table) => {
+    const columns = Array.isArray(table.columns) ? table.columns : [];
+    const rows = Array.isArray(table.rows) ? table.rows : [];
+    return `
+      <div class="industry-chain-table-wrap">
+        <div class="industry-chain-table-title">${escapeHtml(table.title || '结果明细')}</div>
+        <table class="industry-chain-table">
+          <thead>
+            <tr>${columns.map((col) => `<th>${escapeHtml(col)}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map((row) => `
+              <tr>${(Array.isArray(row) ? row : []).map((cell) => `<td>${escapeHtml(String(cell ?? ''))}</td>`).join('')}</tr>
+            `).join('') : `<tr><td colspan="${columns.length || 1}">暂无数据</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderIndustryChain() {
+  syncIndustryChainControls();
+  const status = state.industryChainStatus || {};
+  const result = state.industryChainResult || null;
+  const statusEl = $('industryChainStatusText');
+  if (statusEl) {
+    statusEl.className = `message ${status?.ok === false ? 'error' : 'success'} industry-chain-status`;
+    const subTrackCount = Array.isArray(status?.subTracks) ? status.subTracks.length : 0;
+    statusEl.textContent = status?.message || (subTrackCount ? `已连接 Neo4j，覆盖 ${subTrackCount} 条产业链。` : '产业链分析模块加载中…');
+  }
+
+  const rowCount = result?.meta?.rowCount ?? 0;
+  setText('industryChainCount', String(rowCount || 0));
+  const answerEl = $('industryChainAnswer');
+  if (answerEl) {
+    answerEl.className = result?.answer ? 'industry-chain-answer' : 'industry-chain-answer empty';
+    answerEl.textContent = result?.answer || '暂无分析结果';
+  }
+  const graphEl = $('industryChainGraph');
+  if (graphEl) {
+    graphEl.className = result?.graph ? 'industry-chain-graph' : 'industry-chain-graph empty';
+    graphEl.innerHTML = result?.graph ? renderIndustryChainGraph(result.graph) : '暂无图谱';
+  }
+  const tablesEl = $('industryChainTables');
+  if (tablesEl) {
+    tablesEl.className = result?.tables?.length ? 'industry-chain-tables' : 'industry-chain-tables empty';
+    tablesEl.innerHTML = renderIndustryChainTables(result?.tables || []);
+  }
+  const suggestionsEl = $('industryChainSuggestions');
+  if (suggestionsEl) {
+    const suggestions = Array.isArray(result?.suggestedQuestions) ? result.suggestedQuestions : [];
+    suggestionsEl.innerHTML = suggestions.map((item) => `
+      <button class="secondary small-btn" type="button" data-industry-suggestion="${escapeHtml(item)}">${escapeHtml(item)}</button>
+    `).join('');
+  }
 }
 
 function highlightQuery(text, query) {
@@ -1588,6 +1750,7 @@ function setupTabs() {
       // 切到企业查询tab时重绘浏览列表（确保可见时渲染）
       if (btn.dataset.tab === 'company-query') {
         renderCompanyQuery();
+        renderIndustryChain();
       }
     });
   });
@@ -1625,6 +1788,8 @@ async function init() {
   bindClick('testRssBtn', '测试中...', testRssFeeds);
   bindClick('companyQueryStatusBtn', '读取中...', loadCompanyQueryStatus);
   bindClick('companyQuerySearchBtn', '查询中...', () => runCompanyQuerySearch());
+  bindClick('industryChainOverviewBtn', '读取中...', () => runIndustryChainAnalysis('overview'));
+  bindClick('industryChainAnalyzeBtn', '分析中...', () => runIndustryChainAnalysis());
   // 竞情分析已屏蔽
   // bindClick('competitiveAnalysisRefreshBtn', '读取中...', loadCompetitiveAnalysis);
   // bindClick('competitiveAnalysisGenerateBtn', '生成中...', generateCompetitiveAnalysis);
@@ -1651,6 +1816,24 @@ async function init() {
     });
   }
 
+  const industryChainMode = $('industryChainMode');
+  if (industryChainMode) {
+    industryChainMode.addEventListener('change', () => {
+      state.industryChainMode = industryChainMode.value || 'overview';
+      syncIndustryChainControls();
+    });
+  }
+
+  const industryChainInput = $('industryChainInput');
+  if (industryChainInput) {
+    industryChainInput.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        runIndustryChainAnalysis();
+      }
+    });
+  }
+
   const historyWrap = $('companyQueryHistory');
   if (historyWrap) {
     historyWrap.addEventListener('click', (event) => {
@@ -1658,6 +1841,16 @@ async function init() {
       if (!btn) return;
       const query = btn.getAttribute('data-company-query-history') || '';
       runCompanyQuerySearch(query);
+    });
+  }
+
+  const industrySuggestions = $('industryChainSuggestions');
+  if (industrySuggestions) {
+    industrySuggestions.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-industry-suggestion]');
+      if (!btn) return;
+      const input = $('industryChainInput');
+      if (input) input.value = btn.getAttribute('data-industry-suggestion') || '';
     });
   }
   bindClick('reloadMarkdownBtn', '读取中...', async () => {
@@ -1682,6 +1875,7 @@ async function init() {
   const dashboardResult = await loadDashboard().then(() => null).catch((error) => error);
   const settingsResult = await loadSettings().then(() => null).catch((error) => error);
   const companyQueryResult = await loadCompanyQueryStatus().then(() => null).catch((error) => error);
+  const industryChainResult = await loadIndustryChainStatus().then(() => null).catch((error) => error);
   // 竞情分析已屏蔽
   const competitiveResult = null;
 
@@ -1695,8 +1889,8 @@ async function init() {
   setTimeout(retryRender, 300);
   setTimeout(retryRender, 1000);
 
-  if (dashboardResult || settingsResult || companyQueryResult || competitiveResult) {
-    console.error(dashboardResult || settingsResult || companyQueryResult || competitiveResult);
+  if (dashboardResult || settingsResult || companyQueryResult || industryChainResult || competitiveResult) {
+    console.error(dashboardResult || settingsResult || companyQueryResult || industryChainResult || competitiveResult);
     if (dashboardResult) {
       renderHealth(null);
       showMessage(`首页加载有部分失败:${dashboardResult.message}`, 'error');
@@ -1704,6 +1898,8 @@ async function init() {
       showMessage(`设置页加载有部分失败:${settingsResult.message}`, 'error');
     } else if (companyQueryResult) {
       showMessage(`企业查询加载有部分失败:${companyQueryResult.message}`, 'error');
+    } else if (industryChainResult) {
+      showMessage(`产业链分析加载有部分失败:${industryChainResult.message}`, 'error');
     } else {
       showMessage(`竞情分析加载有部分失败:${competitiveResult.message}`, 'error');
     }

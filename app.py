@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from modules.ceo_brief.routes import router as ceo_brief_router
 from modules.company_query.routes import router as company_query_router
 from modules.competitive_analysis.routes import router as competitive_analysis_router
+from modules.industry_chain.routes import router as industry_chain_router
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND_DIR = ROOT / 'frontend'
@@ -19,6 +20,7 @@ app = FastAPI(title='AI Post-Invest Platform', version='0.5.0')
 app.include_router(ceo_brief_router)
 app.include_router(company_query_router)
 app.include_router(competitive_analysis_router)
+app.include_router(industry_chain_router)
 
 if FRONTEND_DIR.exists():
     app.mount('/assets', StaticFiles(directory=str(FRONTEND_DIR / 'assets')), name='platform-assets')

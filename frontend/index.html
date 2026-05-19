@@ -214,6 +214,73 @@
           </section>
 
           <section class="grid">
+            <article class="panel industry-chain-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>产业链分析</h3>
+                  <p class="muted">连接本机 Neo4j 统一图谱，支持产业链全景、企业上下游和被投企业合作机会探索。</p>
+                </div>
+                <div class="actions">
+                  <button id="industryChainOverviewBtn" class="secondary small-btn">全景</button>
+                  <button id="industryChainAnalyzeBtn" class="secondary small-btn">分析</button>
+                </div>
+              </div>
+              <div class="industry-chain-controls">
+                <label>
+                  <span>分析模式</span>
+                  <select id="industryChainMode" class="sort-select source-select">
+                    <option value="overview">产业链全景</option>
+                    <option value="company-updown">企业上下游</option>
+                    <option value="opportunities">合作机会探索</option>
+                  </select>
+                </label>
+                <label id="industryChainScopeWrap">
+                  <span>探索范围</span>
+                  <select id="industryChainScope" class="sort-select source-select">
+                    <option value="all">全部产业链</option>
+                    <option value="sub_track">指定产业链/子赛道</option>
+                    <option value="enterprise">指定企业</option>
+                    <option value="scenario">指定外部产业/场景</option>
+                  </select>
+                </label>
+                <label>
+                  <span>关键词</span>
+                  <input type="text" id="industryChainInput" class="single-line-input" placeholder="企业名 / 子赛道 / 场景，例如：光通信/光模块、中科慧远、半导体检测" />
+                </label>
+              </div>
+              <div id="industryChainStatusText" class="message success industry-chain-status">产业链分析模块加载中…</div>
+            </article>
+          </section>
+
+          <section class="grid two-col industry-chain-output-grid">
+            <article class="panel industry-chain-answer-panel">
+              <div class="panel-header">
+                <h3>AI 分析结论</h3>
+                <span id="industryChainCount" class="count-badge">0</span>
+              </div>
+              <div id="industryChainAnswer" class="industry-chain-answer empty">暂无分析结果</div>
+              <div id="industryChainSuggestions" class="industry-chain-suggestions"></div>
+            </article>
+            <article class="panel industry-chain-graph-panel">
+              <div class="panel-header">
+                <h3>图谱视图</h3>
+              </div>
+              <div id="industryChainGraph" class="industry-chain-graph empty">暂无图谱</div>
+            </article>
+          </section>
+
+          <section class="grid">
+            <section class="reader-section">
+              <div class="reader-section-head">
+                <div>
+                  <h3>产业链结果明细</h3>
+                </div>
+              </div>
+              <div id="industryChainTables" class="industry-chain-tables empty">暂无数据</div>
+            </section>
+          </section>
+
+          <section class="grid">
             <section class="reader-section">
               <div class="reader-section-head">
                 <div>
