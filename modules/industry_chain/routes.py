@@ -57,37 +57,100 @@ def _query_terms(keyword: str) -> list[str]:
     return result[:8]
 
 
+_REGION_TERMS = [
+    '北京', '上海', '天津', '重庆', '河北', '山西', '辽宁', '吉林', '黑龙江', '江苏', '浙江', '安徽', '福建',
+    '江西', '山东', '河南', '湖北', '湖南', '广东', '海南', '四川', '贵州', '云南', '陕西', '甘肃', '青海',
+    '台湾', '内蒙古', '广西', '西藏', '宁夏', '新疆', '香港', '澳门', '西安', '深圳', '广州', '苏州', '南京',
+    '杭州', '成都', '武汉', '合肥', '青岛', '宁波', '厦门', '长沙', '郑州',
+]
+
+_ORG_SUFFIX_PATTERN = re.compile(
+    r'(股份有限公司|有限责任公司|有限公司|集团股份|集团有限公司|控股集团|控股有限公司|科技股份|科技有限公司|'
+    r'股份|集团|控股|公司|厂|院|所|中心|大学|研究院|研究所|实验室)$'
+)
+
+_GENERIC_INDUSTRY_EXPANSIONS: list[tuple[tuple[str, ...], list[str]]] = [
+    (('电力', '电网', '供电', '输电', '配电', '变电', '能源局'), [
+        '电力', '电网', '智能电网', '变电', '输电', '配网', '储能', '新能源消纳',
+        '巡检', '无人机巡检', '传感', '温度监测', '虚拟电厂', '变压器', '开关柜', '电缆',
+    ]),
+    (('能源', '新能源', '发电', '风电', '光伏', '储能'), [
+        '能源', '新能源', '储能', '风电', '光伏', '发电', '调峰', '调频', '能源管理', '虚拟电厂',
+    ]),
+    (('汽车', '车企', '主机厂', '整车', '商用车', '乘用车'), [
+        '汽车', '新能源汽车', '整车', '车载', '座舱', '智能驾驶', '热管理', '充电', '换电', '动力电池',
+    ]),
+    (('电池', '锂电', '动力电池'), [
+        '电池', '动力电池', '锂电', '储能', '电池材料', 'BMS', '热管理', '电芯', '电池安全',
+    ]),
+    (('数据中心', '算力', '智算', '云计算'), [
+        '数据中心', '算力', '智算', 'AI', '液冷', '储能', '光通信', '服务器', '电源管理', '网络互联',
+    ]),
+    (('航天', '卫星', '火箭', '航空', '飞机', '飞行器'), [
+        '航天', '商业航天', '卫星', '遥感', '测控', '通信', '导航', '无人机', '光通信',
+    ]),
+    (('半导体', '芯片', '集成电路'), [
+        '半导体', '芯片', '集成电路', '封装', '测试', '传感器', '功率器件', '光电芯片',
+    ]),
+    (('机器人', '无人机', '巡检', '智能装备'), [
+        '机器人', '无人机', '巡检', '智能装备', '机器视觉', '导航', '控制', '传感',
+    ]),
+    (('医疗', '医院', '医药', '生物'), [
+        '医疗', '医药', '生物', '传感', '检测', '影像', '诊断', '耗材',
+    ]),
+    (('化工', '材料', '新材料'), [
+        '化工', '材料', '新材料', '导电材料', '散热', '涂层', '复合材料',
+    ]),
+    (('铁路', '轨道', '交通'), [
+        '轨道交通', '铁路', '交通', '巡检', '传感', '电力设备', '通信', '安全监测',
+    ]),
+]
+
+
+def _append_unique(target: list[str], values: list[str] | tuple[str, ...]) -> None:
+    for value in values:
+        term = str(value or '').strip()
+        if term and len(term) >= 2 and term not in target:
+            target.append(term)
+
+
+def _company_name_terms(text: str) -> tuple[list[str], list[str]]:
+    compact = re.sub(r'\s+', '', text)
+    aliases: list[str] = []
+    anchors: list[str] = []
+    if compact:
+        aliases.append(compact)
+        anchors.append(compact)
+
+    without_suffix = _ORG_SUFFIX_PATTERN.sub('', compact)
+    if without_suffix and without_suffix != compact:
+        aliases.append(without_suffix)
+        anchors.append(without_suffix)
+
+    for region in _REGION_TERMS:
+        if region in compact:
+            aliases.append(region)
+            rest = compact.replace(region, '')
+            rest = _ORG_SUFFIX_PATTERN.sub('', rest)
+            if len(rest) >= 2:
+                aliases.append(rest)
+
+    parts = [part for part in re.split(r'[省市区县集团控股股份有限责任公司（）()]+', compact) if len(part) >= 2]
+    _append_unique(aliases, parts)
+    return aliases, anchors[:8]
+
+
 def _external_company_terms(keyword: str) -> tuple[list[str], list[str]]:
     text = str(keyword or '').strip()
-    terms = _query_terms(text)
+    aliases, anchor_terms = _company_name_terms(text)
+    terms = [*_query_terms(text), *aliases]
     expansions: list[str] = []
-    anchor_terms: list[str] = terms[:]
-    expansion_rules = [
-        (('国网', '国家电网', '电力公司', '供电公司'), [
-            '国家电网', '国网', '电力', '电网', '智能电网', '变电', '输电', '配网',
-            '储能', '新能源', '新能源消纳', '巡检', '无人机巡检', '传感', '温度监测',
-            '虚拟电厂', '变压器', '开关柜', '电缆',
-        ]),
-        (('南方电网',), [
-            '南方电网', '电力', '电网', '智能电网', '变电', '输电', '配网',
-            '储能', '新能源', '巡检', '传感', '虚拟电厂',
-        ]),
-        (('比亚迪',), [
-            '比亚迪', '新能源汽车', '汽车', '电池', '动力电池', '储能', '充电',
-            '换电', '车载', '座舱', '热管理',
-        ]),
-        (('宁德时代',), [
-            '宁德时代', '动力电池', '储能', '锂电', '电池', '新能源', '电池材料',
-        ]),
-    ]
-    for markers, values in expansion_rules:
+    for markers, values in _GENERIC_INDUSTRY_EXPANSIONS:
         if any(marker in text for marker in markers):
-            anchor_terms.extend(values[:2])
             expansions.extend(values)
-    if '陕西' in text:
-        expansions.extend(['陕西', '西安', '陕北', '陕南'])
-    if '数据中心' in text:
-        expansions.extend(['数据中心', 'AI', '算力', '液冷', '储能', '光通信'])
+    for region in _REGION_TERMS:
+        if region in text:
+            expansions.append(region)
     result: list[str] = []
     for term in [*terms, *expansions]:
         if term and term not in result:
