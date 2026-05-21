@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import time
+import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from modules.industry_chain.config import INDUSTRY_CHAIN_DEFAULT_LIMIT, INDUSTRY_CHAIN_MAX_LIMIT
 from modules.industry_chain.services.analyst import analyze_with_llm, build_rule_answer
@@ -12,6 +13,10 @@ from modules.industry_chain.services.neo4j_client import run_read_query, verify_
 from modules.industry_chain.services import query_templates as qt
 
 router = APIRouter()
+
+OVERVIEW_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+_overview_cache: dict[str, Any] = {'loadedAt': 0.0, 'rows': None}
+_analysis_jobs: dict[str, dict[str, Any]] = {}
 
 
 def _limit(payload: dict[str, Any] | None = None, default: int = INDUSTRY_CHAIN_DEFAULT_LIMIT) -> int:
@@ -35,6 +40,79 @@ def _analysis(mode: str, rows: list[dict[str, Any]], query: dict[str, Any], incl
     if not include:
         return build_rule_answer(mode, rows), {'enabled': False, 'skipped': True}
     return analyze_with_llm(mode, rows, query)
+
+
+@router.post('/api/industry-chain/analyze-result')
+def industry_chain_analyze_result(payload: dict[str, Any]) -> dict[str, Any]:
+    payload = payload or {}
+    mode = str(payload.get('mode') or 'company-updown').strip() or 'company-updown'
+    rows = payload.get('rows') if isinstance(payload.get('rows'), list) else []
+    query = payload.get('query') if isinstance(payload.get('query'), dict) else {}
+    question = str(payload.get('question') or '').strip()
+    if question:
+        query = {**query, 'question': question}
+    answer, llm_meta = analyze_with_llm(mode, rows, query)
+    return {
+        'ok': True,
+        'mode': mode,
+        'query': query,
+        'answer': answer,
+        'meta': {'llm': llm_meta},
+    }
+
+
+def _run_analysis_job(job_id: str, mode: str, rows: list[dict[str, Any]], query: dict[str, Any]) -> None:
+    _analysis_jobs[job_id] = {**_analysis_jobs[job_id], 'status': 'running', 'startedAt': time.time()}
+    try:
+        answer, llm_meta = analyze_with_llm(mode, rows, query)
+        _analysis_jobs[job_id] = {
+            **_analysis_jobs[job_id],
+            'status': 'done',
+            'finishedAt': time.time(),
+            'result': {
+                'ok': True,
+                'mode': mode,
+                'query': query,
+                'answer': answer,
+                'meta': {'llm': llm_meta},
+            },
+        }
+    except Exception as exc:
+        _analysis_jobs[job_id] = {
+            **_analysis_jobs[job_id],
+            'status': 'error',
+            'finishedAt': time.time(),
+            'error': str(exc),
+        }
+
+
+@router.post('/api/industry-chain/analyze-result/jobs')
+def start_industry_chain_analysis_job(payload: dict[str, Any], background_tasks: BackgroundTasks) -> dict[str, Any]:
+    payload = payload or {}
+    mode = str(payload.get('mode') or 'company-updown').strip() or 'company-updown'
+    rows = payload.get('rows') if isinstance(payload.get('rows'), list) else []
+    query = payload.get('query') if isinstance(payload.get('query'), dict) else {}
+    question = str(payload.get('question') or '').strip()
+    if question:
+        query = {**query, 'question': question}
+    job_id = uuid.uuid4().hex
+    _analysis_jobs[job_id] = {
+        'id': job_id,
+        'status': 'queued',
+        'createdAt': time.time(),
+        'mode': mode,
+        'query': query,
+    }
+    background_tasks.add_task(_run_analysis_job, job_id, mode, rows, query)
+    return {'ok': True, 'jobId': job_id, 'status': 'queued'}
+
+
+@router.get('/api/industry-chain/analyze-result/jobs/{job_id}')
+def get_industry_chain_analysis_job(job_id: str) -> dict[str, Any]:
+    job = _analysis_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail='analysis_job_not_found')
+    return {'ok': True, **job}
 
 
 def _overview_graph(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -101,6 +179,38 @@ def _company_updown_graph(rows: list[dict[str, Any]]) -> dict[str, list[dict[str
     return graph
 
 
+def _relation_rows(row: dict[str, Any], direction: str) -> list[dict[str, str]]:
+    relation_key = 'upstreamRelations' if direction == 'upstream' else 'downstreamRelations'
+    stage_key = 'upstreamStages' if direction == 'upstream' else 'downstreamStages'
+    enterprise_key = 'upstreamEnterprises' if direction == 'upstream' else 'downstreamEnterprises'
+    label = '上游' if direction == 'upstream' else '下游'
+    relations: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in _as_list(row.get(relation_key)):
+        if not isinstance(item, dict):
+            continue
+        stage = str(item.get('stage') or '').strip()
+        enterprise = str(item.get('enterprise') or '').strip()
+        if not stage or not enterprise:
+            continue
+        key = (label, stage, enterprise)
+        if key not in seen:
+            relations.append({'direction': label, 'stage': stage, 'enterprise': enterprise})
+            seen.add(key)
+    if relations:
+        return relations
+    fallback_stage = '、'.join(str(item) for item in _as_list(row.get(stage_key)) if item) or '未标注环节'
+    for enterprise in _as_list(row.get(enterprise_key)):
+        enterprise_name = str(enterprise or '').strip()
+        if not enterprise_name:
+            continue
+        key = (label, fallback_stage, enterprise_name)
+        if key not in seen:
+            relations.append({'direction': label, 'stage': fallback_stage, 'enterprise': enterprise_name})
+            seen.add(key)
+    return relations
+
+
 def _opportunity_graph(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     graph = make_graph()
     for row in rows:
@@ -158,7 +268,7 @@ def industry_chain_status() -> dict[str, Any]:
         'ok': True,
         'module': 'industry-chain',
         'ready': True,
-        'message': '产业链分析模块已连接本机 Neo4j 统一图谱。',
+        'message': '产业链分析模块就绪。',
         'nodeCounts': node_counts,
         'relationshipCounts': rel_counts,
         'subTracks': sub_tracks,
@@ -167,10 +277,19 @@ def industry_chain_status() -> dict[str, Any]:
 
 
 @router.get('/api/industry-chain/overview')
-def industry_chain_overview(includeAnalysis: bool = False) -> dict[str, Any]:
+def industry_chain_overview(includeAnalysis: bool = False, question: str = '', refresh: bool = False) -> dict[str, Any]:
     started = time.perf_counter()
-    rows = run_read_query(qt.OVERVIEW)
-    answer, llm_meta = _analysis('overview', rows, {}, includeAnalysis)
+    now = time.time()
+    cached_rows = _overview_cache.get('rows')
+    if not refresh and cached_rows is not None and now - float(_overview_cache.get('loadedAt') or 0) < OVERVIEW_CACHE_TTL_SECONDS:
+        rows = cached_rows
+        cache_hit = True
+    else:
+        rows = run_read_query(qt.OVERVIEW)
+        _overview_cache['rows'] = rows
+        _overview_cache['loadedAt'] = now
+        cache_hit = False
+    answer, llm_meta = _analysis('overview', rows, {'question': question.strip()}, includeAnalysis)
     table_rows = [[
         row.get('subTrack') or '',
         row.get('stageLevel') or '',
@@ -189,8 +308,10 @@ def industry_chain_overview(includeAnalysis: bool = False) -> dict[str, Any]:
         'meta': {
             'rowCount': len(rows),
             'elapsedMs': round((time.perf_counter() - started) * 1000),
+            'cacheHit': cache_hit,
             'llm': llm_meta,
         },
+        'query': {'question': question.strip()},
         'suggestedQuestions': _suggestions('overview'),
     }
 
@@ -207,22 +328,31 @@ def industry_chain_company_updown(payload: dict[str, Any]) -> dict[str, Any]:
         'limit': limit,
         'enterpriseLimit': 5,
     })
-    answer, llm_meta = _analysis('company-updown', rows, {'enterpriseName': enterprise_name}, bool(payload.get('includeAnalysis')))
-    table_rows = [[
-        row.get('enterprise') or '',
-        '、'.join(_as_list(row.get('subTracks'))),
-        '、'.join(_as_list(row.get('stages'))),
-        '、'.join(_as_list(row.get('upstreamEnterprises'))[:8]),
-        '、'.join(_as_list(row.get('downstreamEnterprises'))[:8]),
-        '、'.join(_as_list(row.get('keyCapabilities'))[:8]),
-    ] for row in rows]
+    question = str((payload or {}).get('question') or '').strip()
+    answer, llm_meta = _analysis('company-updown', rows, {
+        'enterpriseName': enterprise_name,
+        'question': question,
+    }, bool(payload.get('includeAnalysis')))
+    relationship_rows = [
+        [
+            row.get('enterprise') or '',
+            relation['direction'],
+            relation['stage'],
+            relation['enterprise'],
+            '、'.join(_as_list(row.get('subTracks'))),
+            '、'.join(_as_list(row.get('stages'))),
+        ]
+        for row in rows
+        for relation in (_relation_rows(row, 'upstream') + _relation_rows(row, 'downstream'))
+    ]
     return {
         'ok': True,
         'mode': 'company-updown',
-        'query': {'enterpriseName': enterprise_name},
+        'query': {'enterpriseName': enterprise_name, 'question': question},
         'answer': answer,
         'graph': _company_updown_graph(rows),
-        'tables': [_table('企业上下游分析', ['企业', '产业链', '所在环节', '上游企业', '下游企业', '关键能力'], table_rows)],
+        'tables': [_table('上下游关联企业明细', ['目标企业', '关联方向', '关联环节', '关联企业', '产业链', '目标所在环节'], relationship_rows)],
+        'relationshipRows': relationship_rows,
         'rows': rows,
         'meta': {
             'rowCount': len(rows),
@@ -239,6 +369,7 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
     payload = payload or {}
     scope_type = str(payload.get('scopeType') or 'all').strip() or 'all'
     keyword = str(payload.get('keyword') or '').strip()
+    question = str(payload.get('question') or '').strip()
     limit = _limit(payload)
     if scope_type != 'all' and not keyword:
         raise HTTPException(status_code=400, detail='keyword_required')
@@ -278,6 +409,7 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
     answer, llm_meta = _analysis('opportunities', opportunities, {
         'scopeType': scope_type,
         'keyword': keyword,
+        'question': question,
     }, bool(payload.get('includeAnalysis')))
     table_rows = [[
         row.get('sourceEnterprise') or '',
@@ -292,7 +424,7 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         'ok': True,
         'mode': 'opportunities',
-        'query': {'scopeType': scope_type, 'keyword': keyword},
+        'query': {'scopeType': scope_type, 'keyword': keyword, 'question': question},
         'answer': answer,
         'opportunities': opportunities,
         'graph': _opportunity_graph(opportunities),

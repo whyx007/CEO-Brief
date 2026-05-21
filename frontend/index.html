@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>星擎智服</title>
     <link rel="icon" type="image/png" href="/logo/logo8.png" />
-    <link rel="stylesheet" href="/assets/styles.css?v=20260508-1512" />
+    <link rel="stylesheet" href="/vendor/vis-network/vis-network.min.css" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260521-0052" />
   </head>
   <body>
     <div class="app-shell">
@@ -15,14 +16,21 @@
           <nav class="nav nav-inline nav-vertical">
             <button class="nav-btn active" data-tab="dashboard">CEO参阅</button>
             <button class="nav-btn" data-tab="company-query">企业查询</button>
+            <button class="nav-btn" data-tab="industry-chain">产业链分析</button>
             <!-- 竞情分析已屏蔽 -->
             <!--<button class="nav-btn" data-tab="competitive-analysis">竞情分析</button>-->
           </nav>
         </div>
         <div class="sidebar-footer muted">
-          <div>后端主线：Python / FastAPI</div>
-          <div id="healthText">服务状态检测中…</div>
-          <div id="backendMetaText">运行信息读取中…</div>
+          <div id="deepseekBudgetWidget" class="deepseek-budget-widget">
+            <div class="deepseek-budget-head">
+              <span>DeepSeek 今日用量</span>
+            </div>
+            <div class="deepseek-budget-bar">
+              <i id="deepseekBudgetFill" style="width:0%"></i>
+            </div>
+            <div id="deepseekBudgetMeta" class="deepseek-budget-meta">读取中…</div>
+          </div>
         </div>
       </aside>
 
@@ -195,7 +203,7 @@
                 <h3>查询输入</h3>
               </div>
               <div class="form-grid single">
-                <input type="text" id="companyQueryInput" class="single-line-input" placeholder="查询内容，支持公司名 / 简称 / 技术关键词 / 场景词；Ctrl+Enter 可直接查询，企业查询模块已接入本地 Excel，可按企业名或关键词检索" />
+                <input type="text" id="companyQueryInput" class="single-line-input" placeholder="查询内容，支持公司名 / 简称 / 技术关键词 / 场景词；Enter 可直接查询，企业查询模块已接入本地 Excel，可按企业名或关键词检索" />
               </div>
               <div class="company-query-toolbar">
                 <div>
@@ -208,76 +216,6 @@
               </div>
               
             </article>
-          </section>
-
-          <section class="grid">
-          </section>
-
-          <section class="grid">
-            <article class="panel industry-chain-panel">
-              <div class="panel-header">
-                <div>
-                  <h3>产业链分析</h3>
-                  <p class="muted">连接本机 Neo4j 统一图谱，支持产业链全景、企业上下游和被投企业合作机会探索。</p>
-                </div>
-                <div class="actions">
-                  <button id="industryChainOverviewBtn" class="secondary small-btn">全景</button>
-                  <button id="industryChainAnalyzeBtn" class="secondary small-btn">分析</button>
-                </div>
-              </div>
-              <div class="industry-chain-controls">
-                <label>
-                  <span>分析模式</span>
-                  <select id="industryChainMode" class="sort-select source-select">
-                    <option value="overview">产业链全景</option>
-                    <option value="company-updown">企业上下游</option>
-                    <option value="opportunities">合作机会探索</option>
-                  </select>
-                </label>
-                <label id="industryChainScopeWrap">
-                  <span>探索范围</span>
-                  <select id="industryChainScope" class="sort-select source-select">
-                    <option value="all">全部产业链</option>
-                    <option value="sub_track">指定产业链/子赛道</option>
-                    <option value="enterprise">指定企业</option>
-                    <option value="scenario">指定外部产业/场景</option>
-                  </select>
-                </label>
-                <label>
-                  <span>关键词</span>
-                  <input type="text" id="industryChainInput" class="single-line-input" placeholder="企业名 / 子赛道 / 场景，例如：光通信/光模块、中科慧远、半导体检测" />
-                </label>
-              </div>
-              <div id="industryChainStatusText" class="message success industry-chain-status">产业链分析模块加载中…</div>
-            </article>
-          </section>
-
-          <section class="grid two-col industry-chain-output-grid">
-            <article class="panel industry-chain-answer-panel">
-              <div class="panel-header">
-                <h3>AI 分析结论</h3>
-                <span id="industryChainCount" class="count-badge">0</span>
-              </div>
-              <div id="industryChainAnswer" class="industry-chain-answer empty">暂无分析结果</div>
-              <div id="industryChainSuggestions" class="industry-chain-suggestions"></div>
-            </article>
-            <article class="panel industry-chain-graph-panel">
-              <div class="panel-header">
-                <h3>图谱视图</h3>
-              </div>
-              <div id="industryChainGraph" class="industry-chain-graph empty">暂无图谱</div>
-            </article>
-          </section>
-
-          <section class="grid">
-            <section class="reader-section">
-              <div class="reader-section-head">
-                <div>
-                  <h3>产业链结果明细</h3>
-                </div>
-              </div>
-              <div id="industryChainTables" class="industry-chain-tables empty">暂无数据</div>
-            </section>
           </section>
 
           <section class="grid">
@@ -321,6 +259,110 @@
                 <div class="company-browse-list empty">暂无数据</div>
               </div>
             </section>
+          </section>
+        </section>
+
+        <section id="tab-industry-chain" class="tab">
+          <header class="page-header">
+            <div>
+              <h2>产业链分析</h2>
+              <p class="muted">围绕产业链全景、产业链上下游和被投企业合作机会生成图表与分析报告。</p>
+            </div>
+          </header>
+
+          <section class="grid">
+            <article class="panel industry-chain-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>分析输入</h3>
+                </div>
+              </div>
+              <div class="industry-chain-controls">
+                <label class="industry-chain-select-picker">
+                  <span>分析模式</span>
+                  <select id="industryChainMode" class="industry-chain-emphasis-select">
+                    <option value="overview">产业链全景</option>
+                    <option value="company-updown">产业链上下游</option>
+                    <option value="opportunities">合作机会探索</option>
+                  </select>
+                </label>
+                <label id="industryChainScopeWrap">
+                  <span>探索范围</span>
+                  <select id="industryChainScope" class="sort-select source-select">
+                    <option value="all">全部产业链</option>
+                    <option value="sub_track">指定产业链/子赛道</option>
+                    <option value="enterprise">指定企业</option>
+                    <option value="scenario">指定外部产业/场景</option>
+                  </select>
+                </label>
+                <label id="industryChainKeywordWrap">
+                  <span>目标公司</span>
+                  <div class="industry-chain-target-input">
+                    <input type="text" id="industryChainInput" class="single-line-input" placeholder="输入企业名，例如：中科慧远视觉技术（洛阳）有限公司" />
+                    <button id="industryChainInputConfirmBtn" class="secondary" type="button">确认</button>
+                  </div>
+                </label>
+              </div>
+              <div id="industryChainStatusText" class="message success industry-chain-status">产业链分析模块加载中…</div>
+            </article>
+          </section>
+
+          <section class="grid">
+            <article class="panel industry-chain-insight-panel">
+              <div class="panel-header">
+                <h3>图表总览</h3>
+              </div>
+              <div id="industryChainDashboard" class="industry-chain-dashboard empty">暂无图表</div>
+            </article>
+          </section>
+
+          <section class="grid industry-chain-output-grid">
+            <article id="industryChainAnswerPanel" class="panel industry-chain-answer-panel">
+              <div class="panel-header">
+                <h3>上下游关系</h3>
+                <span id="industryChainCount" class="count-badge">0</span>
+              </div>
+              <div id="industryChainRelationSummary" class="industry-chain-answer empty">暂无上下游关系</div>
+            </article>
+            <article class="panel industry-chain-graph-panel">
+              <div class="panel-header">
+                <h3>产业链树状图</h3>
+                <label class="industry-chain-track-picker">
+                  <span>选择产业链</span>
+                  <select id="industryChainTrackSelect" class="industry-chain-track-select" aria-label="选择产业链">
+                    <option value="">自动选择产业链</option>
+                  </select>
+                </label>
+              </div>
+              <div id="industryChainGraph" class="industry-chain-graph empty">暂无图谱</div>
+            </article>
+          </section>
+
+          <section id="industryChainQuestionSection" class="grid">
+            <article class="panel industry-chain-analysis-panel">
+              <div class="panel-header">
+                <h3>分析问题</h3>
+              </div>
+              <label id="industryChainQuestionWrap" class="industry-chain-question-field">
+                <input type="text" id="industryChainQuestion" class="single-line-input" placeholder="可选，例如：这些相邻企业里哪些最适合先撮合？" />
+              </label>
+              <div class="actions">
+                <button id="industryChainQuestionAnalyzeBtn" class="secondary">分析</button>
+              </div>
+              <div id="industryChainQuestionAnswer" class="industry-chain-question-answer hidden"></div>
+            </article>
+          </section>
+
+          <section class="grid">
+            <article class="panel industry-chain-network-panel">
+              <div class="industry-chain-network-head">
+                <b>产业链图谱</b>
+                <span id="industryChainNetworkMeta">节点关系</span>
+              </div>
+              <div id="industryChainNetwork" class="industry-chain-network empty">
+                <button id="industryChainShowNetworkBtn" class="secondary" type="button">显示图谱</button>
+              </div>
+            </article>
           </section>
         </section>
 
@@ -617,6 +659,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="/assets/app.js?v=20260508-1512"></script>
+    <script src="/vendor/vis-network/vis-network.min.js"></script>
+    <script src="/assets/app.js?v=20260521-0052"></script>
   </body>
 </html>

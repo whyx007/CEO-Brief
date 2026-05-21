@@ -440,6 +440,52 @@ def llm_status() -> dict[str, Any]:
     }
 
 
+@router.get('/api/ceo-brief/llm/balance')
+def llm_balance() -> dict[str, Any]:
+    daily_limit = 5.0
+    try:
+        daily_limit = float(os.getenv('DEEPSEEK_DAILY_BUDGET_CNY', '5') or '5')
+    except ValueError:
+        daily_limit = 5.0
+    if LLM_PROVIDER != 'deepseek' or not llm_client.enabled:
+        return {
+            'ok': False,
+            'enabled': False,
+            'dailyLimitCny': daily_limit,
+            'message': 'deepseek_not_enabled',
+        }
+    try:
+        usage = llm_client.daily_usage()
+        used = usage.get('usedCny')
+        current = usage.get('currentBalanceCny')
+        percent = 0.0
+        if isinstance(used, (int, float)) and daily_limit > 0:
+            percent = max(0, min(100, round((used / daily_limit) * 100, 1)))
+        return {
+            'ok': True,
+            'enabled': True,
+            'provider': 'deepseek',
+            'model': llm_client.model,
+            'usedCny': used,
+            'currentBalanceCny': current,
+            'startBalanceCny': usage.get('startBalanceCny'),
+            'currency': usage.get('currency') or 'CNY',
+            'dailyLimitCny': daily_limit,
+            'usedPercent': percent,
+            'limited': bool(usage.get('limited')),
+            'date': usage.get('date'),
+            'startedAt': usage.get('startedAt'),
+            'updatedAt': usage.get('updatedAt'),
+        }
+    except Exception as exc:
+        return {
+            'ok': False,
+            'enabled': True,
+            'dailyLimitCny': daily_limit,
+            'message': str(exc),
+        }
+
+
 @router.post('/api/ceo-brief/llm/test')
 def llm_test() -> dict[str, Any]:
     if LLM_PROVIDER != 'deepseek' or not llm_client.enabled:
@@ -821,6 +867,3 @@ def generate_free_brief() -> dict[str, Any]:
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f'generate_free_brief_failed: {exc}')
-
-
-
