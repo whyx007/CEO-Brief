@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
+import re
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -30,6 +31,22 @@ def _limit(payload: dict[str, Any] | None = None, default: int = INDUSTRY_CHAIN_
 
 def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else ([] if value in (None, '') else [value])
+
+
+def _query_terms(keyword: str) -> list[str]:
+    text = str(keyword or '').strip()
+    if not text:
+        return []
+    terms = [text]
+    terms.extend(part for part in re.split(r'[\s,，、/；;:：()（）\-]+', text) if len(part) >= 2)
+    for marker in ('AI', 'ai', '数据中心', '反恐'):
+        if marker in text:
+            terms.append(marker)
+    result: list[str] = []
+    for term in terms:
+        if term and term not in result:
+            result.append(term)
+    return result[:8]
 
 
 def _table(title: str, columns: list[str], rows: list[list[Any]]) -> dict[str, Any]:
@@ -368,14 +385,24 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
     started = time.perf_counter()
     payload = payload or {}
     scope_type = str(payload.get('scopeType') or 'all').strip() or 'all'
+    opportunity_mode = str(payload.get('opportunityMode') or scope_type or 'external_company').strip() or 'external_company'
     keyword = str(payload.get('keyword') or '').strip()
     question = str(payload.get('question') or '').strip()
     limit = _limit(payload)
-    if scope_type != 'all' and not keyword:
+    if opportunity_mode in {'external_company', 'technology_scope', 'industry_direction'} and not keyword:
         raise HTTPException(status_code=400, detail='keyword_required')
 
-    params = {'scopeType': scope_type, 'keyword': keyword, 'limit': limit}
-    if scope_type == 'enterprise':
+    params = {'scopeType': scope_type, 'keyword': keyword, 'queryTerms': _query_terms(keyword), 'limit': limit}
+    if opportunity_mode == 'external_company':
+        rows = run_read_query(qt.OPPORTUNITIES_EXTERNAL_COMPANY, params)
+        templates = ['opportunities_external_company']
+    elif opportunity_mode == 'technology_scope':
+        rows = run_read_query(qt.OPPORTUNITIES_TECHNOLOGY_SCOPE, params)
+        templates = ['opportunities_technology_scope']
+    elif opportunity_mode == 'industry_direction':
+        rows = run_read_query(qt.OPPORTUNITIES_INDUSTRY_DIRECTION, params)
+        templates = ['opportunities_industry_direction']
+    elif scope_type == 'enterprise':
         rows = run_read_query(qt.OPPORTUNITIES_UPDOWN_BY_ENTERPRISE, params)
         templates = ['opportunities_updown_by_enterprise']
     else:
@@ -391,16 +418,36 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
         evidence = []
         if row.get('subTrack'):
             evidence.append(f"同属{row.get('subTrack')}")
+        if row.get('targetCapabilities'):
+            evidence.append(f"能力匹配：{'、'.join(_as_list(row.get('targetCapabilities'))[:5])}")
+        if row.get('customers'):
+            evidence.append(f"客户线索：{'、'.join(_as_list(row.get('customers'))[:5])}")
+        if row.get('suppliers'):
+            evidence.append(f"供应商线索：{'、'.join(_as_list(row.get('suppliers'))[:5])}")
+        if row.get('scenarios'):
+            evidence.append(f"场景线索：{'、'.join(_as_list(row.get('scenarios'))[:5])}")
         if row.get('sourceStage') and row.get('targetStage'):
             evidence.append(f"{row.get('sourceStage')} -> {row.get('targetStage')} 存在上下游路径")
         if row.get('scenario'):
             evidence.append(f"共同关联应用场景：{row.get('scenario')}")
+        target_enterprise = row.get('targetEnterprise') or row.get('sourceEnterprise') or ''
+        cooperation_scene = {
+            'external_company': f"围绕“{keyword}”的产业链合作、供应链配套或场景共创。",
+            'technology_scope': f"围绕“{keyword}”技术方向进行能力验证、联合方案或客户场景拓展。",
+            'industry_direction': f"围绕“{keyword}”产业方向组建解决方案组合。",
+        }.get(opportunity_type, '可作为上下游协同、联合方案或客户共拓线索。')
         opportunities.append({
             **row,
+            'queryObject': keyword,
+            'investedEnterprise': target_enterprise,
             'evidence': evidence,
-            'cooperationLogic': '可作为上下游协同、联合方案或客户共拓线索，需结合产品规格、客户重合度和商务意愿进一步核验。',
+            'cooperationScene': cooperation_scene,
+            'cooperationLogic': f"{cooperation_scene} 需结合产品规格、客户重合度和商务意愿进一步核验。",
             'suggestedAction': '建议由投后服务团队先做企业访谈和产品/客户匹配核验。',
             'opportunityTypeLabel': {
+                'external_company': '外部公司合作',
+                'technology_scope': '技术能力匹配',
+                'industry_direction': '产业方向协同',
                 'updown': '上下游协同',
                 'scenario_joint': '场景共拓',
             }.get(opportunity_type, opportunity_type),
@@ -408,27 +455,28 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
 
     answer, llm_meta = _analysis('opportunities', opportunities, {
         'scopeType': scope_type,
+        'opportunityMode': opportunity_mode,
         'keyword': keyword,
         'question': question,
     }, bool(payload.get('includeAnalysis')))
     table_rows = [[
-        row.get('sourceEnterprise') or '',
-        row.get('targetEnterprise') or '',
+        row.get('investedEnterprise') or row.get('sourceEnterprise') or '',
         row.get('opportunityTypeLabel') or row.get('opportunityType') or '',
         row.get('confidence') or '',
-        row.get('subTrack') or row.get('scenario') or '',
-        row.get('sourceStage') or '',
-        row.get('targetStage') or '',
+        row.get('subTrack') or row.get('scenario') or '、'.join(_as_list(row.get('scenarios'))[:2]),
+        row.get('targetStage') or row.get('sourceStage') or '',
+        '、'.join(_as_list(row.get('targetCapabilities'))[:5]),
+        row.get('cooperationScene') or '',
         '；'.join(_as_list(row.get('evidence'))),
     ] for row in opportunities]
     return {
         'ok': True,
         'mode': 'opportunities',
-        'query': {'scopeType': scope_type, 'keyword': keyword, 'question': question},
+        'query': {'scopeType': scope_type, 'opportunityMode': opportunity_mode, 'keyword': keyword, 'question': question},
         'answer': answer,
         'opportunities': opportunities,
         'graph': _opportunity_graph(opportunities),
-        'tables': [_table('被投企业合作机会', ['企业A', '企业B', '机会类型', '置信', '依据对象', 'A环节', 'B环节', '图谱证据'], table_rows)],
+        'tables': [_table('被投企业合作机会', ['被投企业', '机会类型', '置信', '依据对象', '匹配环节', '匹配能力', '合作场景', '图谱证据'], table_rows)],
         'meta': {
             'rowCount': len(opportunities),
             'elapsedMs': round((time.perf_counter() - started) * 1000),

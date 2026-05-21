@@ -6,7 +6,7 @@
     <title>星擎智服</title>
     <link rel="icon" type="image/png" href="/logo/logo8.png" />
     <link rel="stylesheet" href="/vendor/vis-network/vis-network.min.css" />
-    <link rel="stylesheet" href="/assets/styles.css?v=20260521-0052" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260521-0060" />
   </head>
   <body>
     <div class="app-shell">
@@ -287,12 +287,11 @@
                   </select>
                 </label>
                 <label id="industryChainScopeWrap">
-                  <span>探索范围</span>
+                  <span>探索类型</span>
                   <select id="industryChainScope" class="sort-select source-select">
-                    <option value="all">全部产业链</option>
-                    <option value="sub_track">指定产业链/子赛道</option>
-                    <option value="enterprise">指定企业</option>
-                    <option value="scenario">指定外部产业/场景</option>
+                    <option value="external_company">外部产业公司</option>
+                    <option value="technology_scope">技术范围相关</option>
+                    <option value="industry_direction">产业方向协同</option>
                   </select>
                 </label>
                 <label id="industryChainKeywordWrap">
@@ -335,6 +334,16 @@
                 </label>
               </div>
               <div id="industryChainGraph" class="industry-chain-graph empty">暂无图谱</div>
+            </article>
+          </section>
+
+          <section id="industryChainOpportunitySection" class="grid hidden">
+            <article class="panel industry-chain-opportunity-panel">
+              <div class="panel-header">
+                <h3>合作机会探索</h3>
+                <span id="industryChainOpportunityCount" class="count-badge">0</span>
+              </div>
+              <div id="industryChainOpportunityResults" class="industry-chain-opportunity-results empty">暂无合作机会</div>
             </article>
           </section>
 
@@ -660,6 +669,6 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="/vendor/vis-network/vis-network.min.js"></script>
-    <script src="/assets/app.js?v=20260521-0052"></script>
+    <script src="/assets/app.js?v=20260521-0060"></script>
   </body>
 </html>

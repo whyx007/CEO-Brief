@@ -744,16 +744,20 @@ function syncIndustryChainControls() {
   const questionWrap = $('industryChainQuestionWrap');
   const questionSection = $('industryChainQuestionSection');
   const scopeWrap = $('industryChainScopeWrap');
+  const scopeSelect = $('industryChainScope');
   if (scopeWrap) scopeWrap.style.display = mode === 'opportunities' ? 'block' : 'none';
   if (keywordWrap) keywordWrap.style.display = mode === 'overview' ? 'none' : 'grid';
   if (questionWrap) questionWrap.style.display = mode === 'overview' ? 'none' : 'grid';
   if (questionSection) questionSection.classList.toggle('hidden', mode === 'overview');
+  if (scopeSelect && mode === 'opportunities' && !['external_company', 'technology_scope', 'industry_direction'].includes(scopeSelect.value)) {
+    scopeSelect.value = 'external_company';
+  }
   if (input) {
     input.disabled = mode === 'overview';
     input.placeholder = mode === 'company-updown'
       ? '输入企业名，例如：中科慧远视觉技术（洛阳）有限公司'
       : mode === 'opportunities'
-        ? '输入目标公司 / 子赛道 / 场景，例如：光通信/光模块、半导体检测'
+        ? '输入外部公司 / 技术范围 / 产业方向，例如：比亚迪、反恐、西安AI数据中心'
         : '全景模式无需输入目标公司';
   }
   if (questionInput) {
@@ -807,15 +811,16 @@ async function runIndustryChainAnalysis(forceMode = '', questionOverride = '') {
       body: JSON.stringify({ enterpriseName: keyword, question, includeAnalysis: false, limit: 30 }),
     });
   } else if (effectiveMode === 'opportunities') {
-    const scopeType = String($('industryChainScope')?.value || 'all');
+    const opportunityMode = String($('industryChainScope')?.value || 'external_company');
+    const scopeType = opportunityMode;
     const keyword = String($('industryChainInput')?.value || '').trim();
-    if (scopeType !== 'all' && !keyword) {
-      showMessage('当前探索范围需要输入关键词', 'error');
+    if (!keyword) {
+      showMessage('请输入外部公司、技术范围或产业方向', 'error');
       return;
     }
     result = await api('/api/industry-chain/opportunities', {
       method: 'POST',
-      body: JSON.stringify({ scopeType, keyword, question, includeAnalysis: true, limit: 30 }),
+      body: JSON.stringify({ scopeType, opportunityMode, keyword, question, includeAnalysis: false, limit: 30 }),
     });
   } else {
     showMessage(`暂不支持的产业链分析模式：${effectiveMode}`, 'error');
@@ -1464,6 +1469,36 @@ function renderOpportunityMatrix(opportunities) {
   `;
 }
 
+function renderOpportunityCards(result) {
+  const opportunities = Array.isArray(result?.opportunities) ? result.opportunities : [];
+  if (!opportunities.length) return '<div class="empty">暂无合作机会</div>';
+  return `
+    <div class="industry-opportunity-card-list">
+      ${opportunities.map((item, index) => `
+        <article class="industry-opportunity-card">
+          <div class="industry-opportunity-card-head">
+            <div>
+              <span>${escapeHtml(item.opportunityTypeLabel || item.opportunityType || '合作机会')}</span>
+              <b>${escapeHtml(item.investedEnterprise || item.targetEnterprise || item.sourceEnterprise || '-')}</b>
+            </div>
+            <em>${escapeHtml(item.confidence || '-')}</em>
+          </div>
+          <div class="industry-opportunity-card-meta">
+            <span>匹配产业链：${escapeHtml(item.subTrack || item.scenario || _asArray(item.scenarios).join('、') || '-')}</span>
+            <span>匹配环节：${escapeHtml(item.targetStage || item.sourceStage || '-')}</span>
+            <span>匹配能力：${escapeHtml(_asArray(item.targetCapabilities).slice(0, 5).join('、') || '-')}</span>
+          </div>
+          <p>${escapeHtml(item.cooperationScene || item.cooperationLogic || '待结合企业画像进一步核验合作场景。')}</p>
+          <div class="industry-opportunity-evidence">
+            ${_asArray(item.evidence).slice(0, 4).map((evidence) => `<span>${escapeHtml(evidence)}</span>`).join('') || '<span>暂无证据</span>'}
+          </div>
+          <div class="industry-opportunity-action">${escapeHtml(item.suggestedAction || '建议进入投后访谈核验。')}</div>
+        </article>
+      `).join('')}
+    </div>
+  `;
+}
+
 function renderEvidenceSummary(result, stats) {
   const query = result.query || {};
   const llm = result.meta?.llm || {};
@@ -1560,6 +1595,7 @@ function renderIndustryChain(options = {}) {
   const mode = currentIndustryChainMode();
   const result = isIndustryChainResultCurrent(state.industryChainResult, mode) ? state.industryChainResult : null;
   const isCompanyUpdownMode = mode === 'company-updown';
+  const isOpportunityMode = mode === 'opportunities';
   const statusEl = $('industryChainStatusText');
   if (statusEl) {
     if (status?.ok === false) {
@@ -1574,19 +1610,29 @@ function renderIndustryChain(options = {}) {
   const rowCount = result?.meta?.rowCount ?? 0;
   setText('industryChainCount', String(rowCount || 0));
   const dashboardGrid = $('industryChainDashboard')?.closest('.grid');
-  if (dashboardGrid) dashboardGrid.classList.toggle('hidden', isCompanyUpdownMode);
+  if (dashboardGrid) dashboardGrid.classList.toggle('hidden', isCompanyUpdownMode || isOpportunityMode);
   const graphPanel = document.querySelector('.industry-chain-graph-panel');
   if (graphPanel) {
+    graphPanel.classList.toggle('hidden', isOpportunityMode);
     const graphTitle = graphPanel.querySelector('.panel-header h3');
     const trackPicker = graphPanel.querySelector('.industry-chain-track-picker');
     if (graphTitle) graphTitle.textContent = isCompanyUpdownMode ? '关系图谱' : '产业链树状图';
     if (trackPicker) trackPicker.classList.toggle('hidden', mode !== 'overview');
   }
   const networkPanel = document.querySelector('.industry-chain-network-panel');
-  if (networkPanel) networkPanel.classList.toggle('hidden', isCompanyUpdownMode);
+  if (networkPanel) networkPanel.classList.toggle('hidden', isCompanyUpdownMode || isOpportunityMode);
   const answerPanel = $('industryChainAnswerPanel');
   if (answerPanel) {
-    answerPanel.style.display = mode === 'overview' ? 'none' : '';
+    answerPanel.style.display = mode === 'overview' || isOpportunityMode ? 'none' : '';
+  }
+  const opportunitySection = $('industryChainOpportunitySection');
+  if (opportunitySection) opportunitySection.classList.toggle('hidden', !isOpportunityMode);
+  setText('industryChainOpportunityCount', String(result?.opportunities?.length || 0));
+  const opportunityEl = $('industryChainOpportunityResults');
+  if (opportunityEl) {
+    const html = isOpportunityMode && result ? renderOpportunityCards(result) : '';
+    opportunityEl.className = html ? 'industry-chain-opportunity-results' : 'industry-chain-opportunity-results empty';
+    opportunityEl.innerHTML = html || '暂无合作机会';
   }
   const dashboardEl = $('industryChainDashboard');
   if (dashboardEl) {
@@ -1608,7 +1654,13 @@ function renderIndustryChain(options = {}) {
   }
   const graphEl = $('industryChainGraph');
   if (graphEl) {
-    if (isCompanyUpdownMode) {
+    if (isOpportunityMode) {
+      resetIndustryChainNetwork();
+      state.industryChainNetworkRequested = false;
+      graphEl.className = 'industry-chain-graph empty compact-empty';
+      graphEl.innerHTML = '合作机会探索不显示图谱';
+      renderIndustryNetworkPlaceholder('合作机会探索不显示产业链图谱');
+    } else if (isCompanyUpdownMode) {
       resetIndustryChainNetwork();
       state.industryChainNetworkRequested = false;
       updateIndustryChainTrackSelect(null);
