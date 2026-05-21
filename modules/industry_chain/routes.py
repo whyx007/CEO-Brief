@@ -33,6 +33,14 @@ def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else ([] if value in (None, '') else [value])
 
 
+def _first_text(values: Any) -> str:
+    for item in _as_list(values):
+        text = str(item or '').strip()
+        if text and not text.startswith('暂无') and '未明确' not in text:
+            return text
+    return ''
+
+
 def _query_terms(keyword: str) -> list[str]:
     text = str(keyword or '').strip()
     if not text:
@@ -49,8 +57,78 @@ def _query_terms(keyword: str) -> list[str]:
     return result[:8]
 
 
+def _external_company_terms(keyword: str) -> tuple[list[str], list[str]]:
+    text = str(keyword or '').strip()
+    terms = _query_terms(text)
+    expansions: list[str] = []
+    anchor_terms: list[str] = terms[:]
+    expansion_rules = [
+        (('国网', '国家电网', '电力公司', '供电公司'), [
+            '国家电网', '国网', '电力', '电网', '智能电网', '变电', '输电', '配网',
+            '储能', '新能源', '新能源消纳', '巡检', '无人机巡检', '传感', '温度监测',
+            '虚拟电厂', '变压器', '开关柜', '电缆',
+        ]),
+        (('南方电网',), [
+            '南方电网', '电力', '电网', '智能电网', '变电', '输电', '配网',
+            '储能', '新能源', '巡检', '传感', '虚拟电厂',
+        ]),
+        (('比亚迪',), [
+            '比亚迪', '新能源汽车', '汽车', '电池', '动力电池', '储能', '充电',
+            '换电', '车载', '座舱', '热管理',
+        ]),
+        (('宁德时代',), [
+            '宁德时代', '动力电池', '储能', '锂电', '电池', '新能源', '电池材料',
+        ]),
+    ]
+    for markers, values in expansion_rules:
+        if any(marker in text for marker in markers):
+            anchor_terms.extend(values[:2])
+            expansions.extend(values)
+    if '陕西' in text:
+        expansions.extend(['陕西', '西安', '陕北', '陕南'])
+    if '数据中心' in text:
+        expansions.extend(['数据中心', 'AI', '算力', '液冷', '储能', '光通信'])
+    result: list[str] = []
+    for term in [*terms, *expansions]:
+        if term and term not in result:
+            result.append(term)
+    anchors: list[str] = []
+    for term in anchor_terms:
+        if term and term not in anchors:
+            anchors.append(term)
+    return result[:32], anchors[:8]
+
+
 def _table(title: str, columns: list[str], rows: list[list[Any]]) -> dict[str, Any]:
     return {'title': title, 'columns': columns, 'rows': rows}
+
+
+def _cooperation_scene(opportunity_type: str, keyword: str, row: dict[str, Any]) -> str:
+    capability = _first_text(row.get('targetCapabilities'))
+    scenario = _first_text(row.get('scenarios')) or _first_text(row.get('scenario'))
+    customer = _first_text(row.get('customers'))
+    stage = str(row.get('targetStage') or row.get('sourceStage') or '').strip()
+    sub_track = str(row.get('subTrack') or '').strip()
+    basis = scenario or stage or sub_track
+    if opportunity_type == 'external_company':
+        if customer and any(term in customer for term in ('国家电网', '国网', '南方电网', keyword)):
+            return f"已有{customer}相关客户/合作线索，可优先核验能否向“{keyword}”复制推广。"
+        if basis and capability:
+            return f"可围绕{basis}，用{capability}与“{keyword}”开展试点、供应链配套或场景共创。"
+        if capability:
+            return f"可基于{capability}，面向“{keyword}”的业务场景做产品适配和客户验证。"
+        return f"围绕“{keyword}”的产业链合作、供应链配套或场景共创。"
+    if opportunity_type == 'technology_scope':
+        if capability and basis:
+            return f"围绕“{keyword}”技术方向，可在{basis}场景验证{capability}。"
+        if capability:
+            return f"围绕“{keyword}”技术方向进行{capability}能力验证、联合方案或客户拓展。"
+        return f"围绕“{keyword}”技术方向进行能力验证、联合方案或客户场景拓展。"
+    if opportunity_type == 'industry_direction':
+        if basis and capability:
+            return f"围绕“{keyword}”产业方向，可将{capability}纳入{basis}任务包。"
+        return f"围绕“{keyword}”产业方向组建解决方案组合。"
+    return '可作为上下游协同、联合方案或客户共拓线索。'
 
 
 def _analysis(mode: str, rows: list[dict[str, Any]], query: dict[str, Any], include: bool) -> tuple[str, dict[str, Any]]:
@@ -392,7 +470,20 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
     if opportunity_mode in {'external_company', 'technology_scope', 'industry_direction'} and not keyword:
         raise HTTPException(status_code=400, detail='keyword_required')
 
-    params = {'scopeType': scope_type, 'keyword': keyword, 'queryTerms': _query_terms(keyword), 'limit': limit}
+    primary_terms = _query_terms(keyword)
+    if opportunity_mode == 'external_company':
+        query_terms, anchor_terms = _external_company_terms(keyword)
+    else:
+        query_terms, anchor_terms = primary_terms, primary_terms
+    params = {
+        'scopeType': scope_type,
+        'keyword': keyword,
+        'primaryTerms': primary_terms,
+        'anchorTerms': anchor_terms,
+        'queryTerms': query_terms,
+        'candidateLimit': min(max(limit * 4, 20), 80),
+        'limit': limit,
+    }
     if opportunity_mode == 'external_company':
         rows = run_read_query(qt.OPPORTUNITIES_EXTERNAL_COMPANY, params)
         templates = ['opportunities_external_company']
@@ -431,11 +522,7 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
         if row.get('scenario'):
             evidence.append(f"共同关联应用场景：{row.get('scenario')}")
         target_enterprise = row.get('targetEnterprise') or row.get('sourceEnterprise') or ''
-        cooperation_scene = {
-            'external_company': f"围绕“{keyword}”的产业链合作、供应链配套或场景共创。",
-            'technology_scope': f"围绕“{keyword}”技术方向进行能力验证、联合方案或客户场景拓展。",
-            'industry_direction': f"围绕“{keyword}”产业方向组建解决方案组合。",
-        }.get(opportunity_type, '可作为上下游协同、联合方案或客户共拓线索。')
+        cooperation_scene = _cooperation_scene(opportunity_type, keyword, row)
         opportunities.append({
             **row,
             'queryObject': keyword,
