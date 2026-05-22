@@ -184,53 +184,43 @@ UNWIND candidates AS candidate
 WITH candidate.enterprise AS e, max(candidate.score) AS baseScore
 ORDER BY baseScore DESC, e.name
 LIMIT $candidateLimit
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
   RETURN collect(DISTINCT s.name) AS subTracks
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
   RETURN collect(DISTINCT st.name) AS stages
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
   RETURN collect(DISTINCT k.name) AS keyCapabilities
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
   RETURN collect(DISTINCT cap.name) AS capabilities
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
   RETURN collect(DISTINCT product.name) AS products
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
   RETURN collect(DISTINCT scenario.name) AS scenarios
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
   RETURN collect(DISTINCT demand.name) AS demands
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
   RETURN collect(DISTINCT industry.name) AS industries
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
   RETURN collect(DISTINCT customer.name) AS customers
 }
-CALL {
-  WITH e
+CALL (e) {
   OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
   RETURN collect(DISTINCT supplier.name) AS suppliers
 }
@@ -274,6 +264,147 @@ RETURN e.name AS targetEnterprise,
        matchScore AS matchScore,
        'external_company' AS opportunityType,
        CASE WHEN matchScore >= 12 THEN 'high' ELSE 'medium' END AS confidence
+"""
+
+OPPORTUNITIES_EXTERNAL_COMPANY_MULTIDIMENSION = """
+UNWIND $dimensionQueries AS dimension
+WITH dimension
+MATCH (e:Enterprise)
+WHERE EXISTS {
+       MATCH (e)-[:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT|APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY|FOCUSES_ON_SUB_TRACK|LOCATED_IN_STAGE|HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+       WHERE tag.name IS NOT NULL
+         AND any(term IN dimension.queryTerms WHERE tag.name CONTAINS term)
+   }
+WITH DISTINCT e
+LIMIT $candidateLimit
+CALL (e) {
+  OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+  RETURN collect(DISTINCT s.name) AS subTracks
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
+  RETURN collect(DISTINCT st.name) AS stages
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
+  RETURN collect(DISTINCT k.name) AS keyCapabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
+  RETURN collect(DISTINCT cap.name) AS capabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
+  RETURN collect(DISTINCT product.name) AS products
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
+  RETURN collect(DISTINCT scenario.name) AS scenarios
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
+  RETURN collect(DISTINCT demand.name) AS demands
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+  RETURN collect(DISTINCT industry.name) AS industries
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+  RETURN collect(DISTINCT customer.name) AS customers
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
+  RETURN collect(DISTINCT supplier.name) AS suppliers
+}
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers,
+     subTracks + stages + keyCapabilities + capabilities + products + scenarios + demands + industries + customers + suppliers AS allTags
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers,
+     [term IN $strongTerms WHERE any(tag IN allTags WHERE tag IS NOT NULL AND tag CONTAINS term)] AS strongHits,
+     [term IN $weakTerms WHERE any(tag IN allTags WHERE tag IS NOT NULL AND tag CONTAINS term)] AS weakHits
+WHERE size(strongHits) > 0 OR size(weakHits) > 0
+RETURN e.name AS targetEnterprise,
+       subTracks[0] AS subTrack,
+       stages[0] AS targetStage,
+       keyCapabilities[0..8] AS keyCapabilities,
+       capabilities[0..8] AS capabilities,
+       products[0..8] AS products,
+       customers[0..8] AS customers,
+       suppliers[0..8] AS suppliers,
+       scenarios[0..8] AS scenarios,
+       demands[0..8] AS demands,
+       industries[0..8] AS industries,
+       strongHits[0..12] AS neo4jStrongHits,
+       weakHits[0..8] AS neo4jWeakHits,
+       'external_company' AS opportunityType
+LIMIT $candidateLimit
+"""
+
+GRAPH_FACT_DISCOVERY_ENTERPRISE_CONTEXT = """
+MATCH (e:Enterprise)
+CALL (e) {
+  OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+  RETURN collect(DISTINCT s.name) AS subTracks
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
+  RETURN collect(DISTINCT st.name) AS stages
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
+  RETURN collect(DISTINCT k.name) AS keyCapabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
+  RETURN collect(DISTINCT cap.name) AS capabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
+  RETURN collect(DISTINCT product.name) AS products
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+  RETURN collect(DISTINCT customer.name) AS customers
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
+  RETURN collect(DISTINCT scenario.name) AS scenarios
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+  RETURN collect(DISTINCT industry.name) AS industries
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
+  RETURN collect(DISTINCT demand.name) AS demands
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
+  RETURN collect(DISTINCT supplier.name) AS suppliers
+}
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, customers, scenarios, industries, demands, suppliers,
+     subTracks + stages + keyCapabilities + capabilities + products + customers + scenarios + industries + demands + suppliers AS allTags
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, customers, scenarios, industries, demands, suppliers, allTags,
+     [term IN $targetTerms WHERE any(tag IN allTags WHERE tag IS NOT NULL AND tag CONTAINS term)] AS targetHits,
+     [term IN $evidenceTerms WHERE any(tag IN allTags WHERE tag IS NOT NULL AND tag CONTAINS term)] AS evidenceHits,
+     [term IN $excludeTerms WHERE any(tag IN allTags WHERE tag IS NOT NULL AND tag CONTAINS term)] AS excludeHits
+WHERE size(targetHits) > 0 OR size(evidenceHits) > 0
+RETURN e.name AS targetEnterprise,
+       subTracks[0..8] AS subTracks,
+       stages[0..8] AS stages,
+       keyCapabilities[0..10] AS keyCapabilities,
+       capabilities[0..12] AS capabilities,
+       products[0..12] AS products,
+       customers[0..12] AS customers,
+       scenarios[0..12] AS scenarios,
+       industries[0..12] AS industries,
+       demands[0..8] AS demands,
+       suppliers[0..8] AS suppliers,
+       targetHits[0..12] AS targetHits,
+       evidenceHits[0..12] AS evidenceHits,
+       excludeHits[0..8] AS excludeHits,
+       'graph_fact_discovery' AS opportunityType
+LIMIT $candidateLimit
 """
 
 OPPORTUNITIES_TECHNOLOGY_SCOPE = """

@@ -9,8 +9,18 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from modules.industry_chain.config import INDUSTRY_CHAIN_DEFAULT_LIMIT, INDUSTRY_CHAIN_MAX_LIMIT
 from modules.industry_chain.services.analyst import analyze_with_llm, build_rule_answer
+from modules.industry_chain.services.external_company_profile import (
+    build_external_company_profile,
+    flatten_profile_query_terms,
+)
+from modules.industry_chain.services.graph_fact_discovery import (
+    build_fact_discovery_plan,
+    rank_fact_discovery_rows,
+    should_use_graph_fact_discovery,
+)
 from modules.industry_chain.services.graph_serializer import add_edge, add_node, make_graph
 from modules.industry_chain.services.neo4j_client import run_read_query, verify_connectivity
+from modules.industry_chain.services.opportunity_ranker import rank_external_company_opportunities
 from modules.industry_chain.services import query_templates as qt
 
 router = APIRouter()
@@ -196,7 +206,7 @@ def _cooperation_scene(opportunity_type: str, keyword: str, row: dict[str, Any])
 
 def _analysis(mode: str, rows: list[dict[str, Any]], query: dict[str, Any], include: bool) -> tuple[str, dict[str, Any]]:
     if not include:
-        return build_rule_answer(mode, rows), {'enabled': False, 'skipped': True}
+        return build_rule_answer(mode, rows, query), {'enabled': False, 'skipped': True}
     return analyze_with_llm(mode, rows, query)
 
 
@@ -372,15 +382,16 @@ def _relation_rows(row: dict[str, Any], direction: str) -> list[dict[str, str]]:
 def _opportunity_graph(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     graph = make_graph()
     for row in rows:
-        source = row.get('sourceEnterprise')
+        source = row.get('sourceEnterprise') or row.get('queryObject')
         target = row.get('targetEnterprise')
         if not source or not target:
             continue
         source_id = f'enterprise:{source}'
         target_id = f'enterprise:{target}'
-        add_node(graph, source_id, source, 'Enterprise')
+        source_type = 'ExternalCompany' if row.get('queryObject') and source == row.get('queryObject') else 'Enterprise'
+        add_node(graph, source_id, source, source_type)
         add_node(graph, target_id, target, 'Enterprise')
-        add_edge(graph, source_id, target_id, row.get('opportunityType') or 'OPPORTUNITY', '潜在合作', {
+        add_edge(graph, source_id, target_id, row.get('cooperationMode') or row.get('opportunityType') or 'OPPORTUNITY', '潜在合作', {
             'confidence': row.get('confidence') or '',
             'scenario': row.get('scenario') or '',
             'subTrack': row.get('subTrack') or '',
@@ -404,6 +415,41 @@ def _suggestions(mode: str) -> list[str]:
     if mode == 'opportunities':
         return ['只看高置信合作机会', '按上下游协同强度排序', '把机会转成投后服务跟进清单']
     return []
+
+
+def _dimension_queries(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for dimension in _as_list(profile.get('cooperationDimensions')):
+        if not isinstance(dimension, dict):
+            continue
+        terms = [term for term in _as_list(dimension.get('queryTerms')) if str(term or '').strip()]
+        if not terms:
+            continue
+        result.append({
+            'mode': dimension.get('mode') or '',
+            'queryTerms': terms[:20],
+        })
+    return result
+
+
+def _external_grouped_payload(grouped_rows: dict[str, list[dict[str, Any]]], profile: dict[str, Any]) -> list[dict[str, Any]]:
+    dimensions = [
+        item for item in _as_list(profile.get('cooperationDimensions'))
+        if isinstance(item, dict) and item.get('mode')
+    ]
+    payload: list[dict[str, Any]] = []
+    for dimension in dimensions:
+        mode = str(dimension.get('mode') or '')
+        rows = grouped_rows.get(mode) or []
+        payload.append({
+            'mode': mode,
+            'externalRole': dimension.get('externalRole') or '',
+            'description': dimension.get('description') or '',
+            'queryTerms': _as_list(dimension.get('queryTerms'))[:12],
+            'count': len(rows),
+            'opportunities': rows[:12],
+        })
+    return payload
 
 
 @router.get('/api/industry-chain/status')
@@ -530,12 +576,23 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
     keyword = str(payload.get('keyword') or '').strip()
     question = str(payload.get('question') or '').strip()
     limit = _limit(payload)
+    if should_use_graph_fact_discovery(question, keyword, opportunity_mode):
+        opportunity_mode = 'graph_fact_discovery'
     if opportunity_mode in {'external_company', 'technology_scope', 'industry_direction'} and not keyword:
         raise HTTPException(status_code=400, detail='keyword_required')
 
     primary_terms = _query_terms(keyword)
-    if opportunity_mode == 'external_company':
-        query_terms, anchor_terms = _external_company_terms(keyword)
+    external_profile: dict[str, Any] | None = None
+    grouped_opportunities: list[dict[str, Any]] = []
+    fact_discovery_plan: dict[str, Any] | None = None
+    if opportunity_mode == 'graph_fact_discovery':
+        fact_discovery_plan = build_fact_discovery_plan(question, keyword)
+        query_terms = _as_list(fact_discovery_plan.get('targetTerms'))
+        anchor_terms = query_terms[:8]
+    elif opportunity_mode == 'external_company':
+        external_profile = build_external_company_profile(keyword)
+        query_terms = flatten_profile_query_terms(external_profile)
+        anchor_terms = _as_list(external_profile.get('aliases'))[:8]
     else:
         query_terms, anchor_terms = primary_terms, primary_terms
     params = {
@@ -547,9 +604,29 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
         'candidateLimit': min(max(limit * 4, 20), 80),
         'limit': limit,
     }
-    if opportunity_mode == 'external_company':
-        rows = run_read_query(qt.OPPORTUNITIES_EXTERNAL_COMPANY, params)
-        templates = ['opportunities_external_company']
+    if opportunity_mode == 'graph_fact_discovery':
+        assert fact_discovery_plan is not None
+        raw_rows = run_read_query(qt.GRAPH_FACT_DISCOVERY_ENTERPRISE_CONTEXT, {
+            'targetTerms': _as_list(fact_discovery_plan.get('targetTerms'))[:100],
+            'evidenceTerms': _as_list(fact_discovery_plan.get('evidenceTerms'))[:100],
+            'excludeTerms': _as_list(fact_discovery_plan.get('excludeTerms'))[:40],
+            'candidateLimit': 500,
+        })
+        rows = rank_fact_discovery_rows(raw_rows, fact_discovery_plan, limit)
+        templates = ['graph_fact_discovery_enterprise_context']
+    elif opportunity_mode == 'external_company':
+        assert external_profile is not None
+        dimension_queries = _dimension_queries(external_profile)
+        rows = run_read_query(qt.OPPORTUNITIES_EXTERNAL_COMPANY_MULTIDIMENSION, {
+            **params,
+            'dimensionQueries': dimension_queries,
+            'strongTerms': _as_list(external_profile.get('strongTerms'))[:60],
+            'weakTerms': _as_list(external_profile.get('weakTerms'))[:30],
+            'candidateLimit': 500,
+        })
+        rows, grouped_by_mode = rank_external_company_opportunities(rows, external_profile, limit)
+        grouped_opportunities = _external_grouped_payload(grouped_by_mode, external_profile)
+        templates = ['opportunities_external_company_multidimension']
     elif opportunity_mode == 'technology_scope':
         rows = run_read_query(qt.OPPORTUNITIES_TECHNOLOGY_SCOPE, params)
         templates = ['opportunities_technology_scope']
@@ -569,7 +646,7 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
     opportunities = []
     for row in rows:
         opportunity_type = row.get('opportunityType') or 'opportunity'
-        evidence = []
+        evidence = _as_list(row.get('evidence'))
         if row.get('subTrack'):
             evidence.append(f"同属{row.get('subTrack')}")
         if row.get('targetCapabilities'):
@@ -586,16 +663,44 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
             evidence.append(f"共同关联应用场景：{row.get('scenario')}")
         target_enterprise = row.get('targetEnterprise') or row.get('sourceEnterprise') or ''
         cooperation_scene = _cooperation_scene(opportunity_type, keyword, row)
+        if opportunity_mode == 'graph_fact_discovery':
+            products = '、'.join(_as_list(row.get('products'))[:3]) or '相关产品/技术'
+            matched_terms = '、'.join(_as_list(row.get('matchedTerms'))[:6])
+            cooperation_scene = f"图谱事实发现：{products} 已命中“{question or keyword}”相关场景/落地证据"
+            if matched_terms:
+                cooperation_scene = f"{cooperation_scene}。匹配词：{matched_terms}"
+        elif opportunity_mode == 'external_company':
+            mode_label = {
+                'supply_to_external': '外部企业作为客户',
+                'external_supply_to_portfolio': '外部企业作为供应商',
+                'joint_r_and_d': '联合研发',
+                'shared_customer': '客户协同',
+                'scenario_landing': '场景落地',
+                'factory_or_operation_support': '厂务与运营配套',
+            }.get(str(row.get('cooperationMode') or ''), '外部公司合作')
+            matched_terms = '、'.join(_as_list(row.get('matchedTerms'))[:6])
+            matched_dimension = str(row.get('matchedDimension') or mode_label)
+            cooperation_scene = f"{mode_label}：{matched_dimension}"
+            if matched_terms:
+                cooperation_scene = f"{cooperation_scene}。匹配词：{matched_terms}"
         opportunities.append({
             **row,
             'queryObject': keyword,
+            'sourceEnterprise': row.get('sourceEnterprise') or keyword,
             'investedEnterprise': target_enterprise,
-            'evidence': evidence,
+            'evidence': list(dict.fromkeys(str(item) for item in evidence if item)),
             'cooperationScene': cooperation_scene,
             'cooperationLogic': f"{cooperation_scene} 需结合产品规格、客户重合度和商务意愿进一步核验。",
             'suggestedAction': '建议由投后服务团队先做企业访谈和产品/客户匹配核验。',
             'opportunityTypeLabel': {
-                'external_company': '外部公司合作',
+                'external_company': {
+                    'supply_to_external': '外部企业作为客户',
+                    'external_supply_to_portfolio': '外部企业作为供应商',
+                    'joint_r_and_d': '联合研发',
+                    'shared_customer': '客户协同',
+                    'scenario_landing': '场景落地',
+                    'factory_or_operation_support': '厂务与运营配套',
+                }.get(str(row.get('cooperationMode') or ''), '外部公司合作'),
                 'technology_scope': '技术能力匹配',
                 'industry_direction': '产业方向协同',
                 'updown': '上下游协同',
@@ -608,6 +713,9 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
         'opportunityMode': opportunity_mode,
         'keyword': keyword,
         'question': question,
+        'externalProfile': external_profile,
+        'factDiscoveryPlan': fact_discovery_plan,
+        'groupedOpportunities': grouped_opportunities,
     }, bool(payload.get('includeAnalysis')))
     table_rows = [[
         row.get('investedEnterprise') or row.get('sourceEnterprise') or '',
@@ -624,6 +732,9 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
         'mode': 'opportunities',
         'query': {'scopeType': scope_type, 'opportunityMode': opportunity_mode, 'keyword': keyword, 'question': question},
         'answer': answer,
+        'externalProfile': external_profile,
+        'factDiscoveryPlan': fact_discovery_plan,
+        'groupedOpportunities': grouped_opportunities,
         'opportunities': opportunities,
         'graph': _opportunity_graph(opportunities),
         'tables': [_table('被投企业合作机会', ['被投企业', '机会类型', '置信', '依据对象', '匹配环节', '匹配能力', '合作场景', '图谱证据'], table_rows)],
