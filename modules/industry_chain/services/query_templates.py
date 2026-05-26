@@ -77,6 +77,65 @@ RETURN e.id AS enterpriseId,
        collect(DISTINCT k.name)[0..20] AS keyCapabilities
 """
 
+ENTERPRISE_PROFILE_BY_NAME = """
+MATCH (e:Enterprise)
+WHERE e.name = $keyword OR e.name CONTAINS $keyword OR $keyword CONTAINS e.name
+WITH e
+ORDER BY size(e.name) DESC
+LIMIT 3
+CALL (e) {
+  OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+  RETURN collect(DISTINCT s.name) AS subTracks
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
+  RETURN collect(DISTINCT st.name) AS stages
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
+  RETURN collect(DISTINCT k.name) AS keyCapabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
+  RETURN collect(DISTINCT cap.name) AS capabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
+  RETURN collect(DISTINCT product.name) AS products
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+  RETURN collect(DISTINCT customer.name) AS customers
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
+  RETURN collect(DISTINCT scenario.name) AS scenarios
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+  RETURN collect(DISTINCT industry.name) AS industries
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
+  RETURN collect(DISTINCT demand.name) AS demands
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
+  RETURN collect(DISTINCT supplier.name) AS suppliers
+}
+RETURN e.name AS enterprise,
+       subTracks[0..8] AS subTracks,
+       stages[0..8] AS stages,
+       keyCapabilities[0..8] AS keyCapabilities,
+       capabilities[0..10] AS capabilities,
+       products[0..10] AS products,
+       customers[0..10] AS customers,
+       scenarios[0..10] AS scenarios,
+       industries[0..10] AS industries,
+       demands[0..8] AS demands,
+       suppliers[0..8] AS suppliers
+"""
+
 OPPORTUNITIES_UPDOWN_BY_SUBTRACK = """
 MATCH (s:SubTrack)
 WHERE $scopeType = 'all' OR s.name CONTAINS $keyword OR s.id = $keyword
@@ -408,26 +467,33 @@ LIMIT $candidateLimit
 """
 
 OPPORTUNITIES_TECHNOLOGY_SCOPE = """
-MATCH (e:Enterprise)
-WHERE any(term IN $queryTerms WHERE e.name CONTAINS term)
-   OR EXISTS {
-       MATCH (e)-[:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT]->(cap)
-       WHERE any(term IN $queryTerms WHERE cap.name CONTAINS term)
-   }
-   OR EXISTS {
-       MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
-       WHERE any(term IN $queryTerms WHERE st.name CONTAINS term)
-   }
-   OR EXISTS {
-       MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
-       WHERE any(term IN $queryTerms WHERE s.name CONTAINS term)
-   }
-   OR EXISTS {
-       MATCH (e)-[:APPLIES_TO_SCENARIO|HAS_DEMAND]->(tag)
-       WHERE any(term IN $queryTerms WHERE tag.name CONTAINS term)
-   }
-WITH DISTINCT e
-LIMIT $limit
+CALL () {
+  MATCH (e:Enterprise)
+  WHERE any(term IN $queryTerms WHERE e.name CONTAINS term)
+  RETURN e, 70 AS baseScore
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT]->(tag)
+  WHERE tag.name IS NOT NULL
+    AND any(term IN $queryTerms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 60 AS baseScore
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[:LOCATED_IN_STAGE|FOCUSES_ON_SUB_TRACK]->(tag)
+  WHERE tag.name IS NOT NULL
+    AND any(term IN $queryTerms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 45 AS baseScore
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[:APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY|HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+  WHERE tag.name IS NOT NULL
+    AND any(term IN $queryTerms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 30 AS baseScore
+  LIMIT $candidateLimit
+}
+WITH e, max(baseScore) AS baseScore
+ORDER BY baseScore DESC, e.name
+LIMIT $candidateLimit
 OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
 OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
 OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
@@ -435,41 +501,65 @@ OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
 OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
 OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
 OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
 WITH e, collect(DISTINCT k.name) AS keyCapabilities, collect(DISTINCT cap.name) AS capabilities,
      collect(DISTINCT product.name) AS products, collect(DISTINCT scenario.name) AS scenarios,
      collect(DISTINCT demand.name) AS demands, collect(DISTINCT st.name) AS stages,
-     collect(DISTINCT s.name) AS subTracks
-WITH e, subTracks, stages, scenarios, demands, keyCapabilities + capabilities + products AS targetCapabilities
+     collect(DISTINCT s.name) AS subTracks, collect(DISTINCT industry.name) AS industries,
+     collect(DISTINCT customer.name) AS customers, collect(DISTINCT supplier.name) AS suppliers,
+     baseScore
+WITH e, subTracks, stages, scenarios, demands, industries, customers, suppliers,
+     keyCapabilities + capabilities + products AS targetCapabilities,
+     [x IN keyCapabilities + capabilities + products + scenarios + demands + stages + subTracks + industries + customers + suppliers
+      WHERE x IS NOT NULL AND any(term IN $queryTerms WHERE x CONTAINS term OR term CONTAINS x)] AS matchedTerms,
+     baseScore
 RETURN e.name AS targetEnterprise,
        subTracks[0] AS subTrack,
        stages[0] AS targetStage,
        targetCapabilities[0..8] AS targetCapabilities,
        scenarios[0..5] AS scenarios,
        demands[0..5] AS demands,
+       industries[0..5] AS industries,
+       customers[0..5] AS customers,
+       suppliers[0..5] AS suppliers,
+       matchedTerms[0..8] AS matchedTerms,
        'technology_scope' AS opportunityType,
-       CASE WHEN any(term IN $queryTerms WHERE any(x IN targetCapabilities WHERE x IS NOT NULL AND x CONTAINS term)) THEN 'high' ELSE 'medium' END AS confidence
+       CASE WHEN baseScore >= 45 OR size(matchedTerms) >= 3 THEN 'high' ELSE 'medium' END AS confidence,
+       baseScore + size(matchedTerms) * 5 AS matchScore
+ORDER BY matchScore DESC, size(matchedTerms) DESC, e.name
+LIMIT $limit
 """
 
 OPPORTUNITIES_INDUSTRY_DIRECTION = """
-MATCH (e:Enterprise)
-WHERE EXISTS {
-       MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
-       WHERE any(term IN $queryTerms WHERE s.name CONTAINS term)
-   }
-   OR EXISTS {
-       MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
-       WHERE any(term IN $queryTerms WHERE st.name CONTAINS term)
-   }
-   OR EXISTS {
-       MATCH (e)-[:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT]->(cap)
-       WHERE any(term IN $queryTerms WHERE cap.name CONTAINS term)
-   }
-   OR EXISTS {
-       MATCH (e)-[:APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY]->(tag)
-       WHERE any(term IN $queryTerms WHERE tag.name CONTAINS term)
-   }
-WITH DISTINCT e
-LIMIT $limit
+CALL () {
+  MATCH (e:Enterprise)
+  WHERE any(term IN $queryTerms WHERE e.name CONTAINS term)
+  RETURN e, 70 AS baseScore
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT]->(tag)
+  WHERE tag.name IS NOT NULL
+    AND any(term IN $queryTerms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 60 AS baseScore
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[:LOCATED_IN_STAGE|FOCUSES_ON_SUB_TRACK]->(tag)
+  WHERE tag.name IS NOT NULL
+    AND any(term IN $queryTerms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 45 AS baseScore
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[:APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY|HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+  WHERE tag.name IS NOT NULL
+    AND any(term IN $queryTerms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 30 AS baseScore
+  LIMIT $candidateLimit
+}
+WITH e, max(baseScore) AS baseScore
+ORDER BY baseScore DESC, e.name
+LIMIT $candidateLimit
 OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
 OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
 OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
@@ -478,20 +568,33 @@ OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
 OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scene:Scenario)
 OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
 OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
 OPTIONAL MATCH (scenario:ApplicationScenario)-[:DRIVES_STAGE]->(st)
 WITH e, collect(DISTINCT s.name) AS subTracks, collect(DISTINCT st.name) AS stages,
      collect(DISTINCT k.name) AS keyCapabilities, collect(DISTINCT cap.name) AS capabilities,
      collect(DISTINCT product.name) AS products, collect(DISTINCT scene.name) AS profileScenarios,
      collect(DISTINCT demand.name) AS demands, collect(DISTINCT industry.name) AS industries,
-     collect(DISTINCT scenario.name) AS graphScenarios
-WITH e, subTracks, stages, demands, industries, graphScenarios + profileScenarios AS scenarios,
-     keyCapabilities + capabilities + products AS targetCapabilities
+     collect(DISTINCT customer.name) AS customers, collect(DISTINCT supplier.name) AS suppliers,
+     collect(DISTINCT scenario.name) AS graphScenarios, baseScore
+WITH e, subTracks, stages, demands, industries, graphScenarios + profileScenarios AS scenarios, customers, suppliers,
+     keyCapabilities + capabilities + products AS targetCapabilities,
+     [x IN keyCapabilities + capabilities + products + graphScenarios + profileScenarios + demands + stages + subTracks + industries + customers + suppliers
+      WHERE x IS NOT NULL AND any(term IN $queryTerms WHERE x CONTAINS term OR term CONTAINS x)] AS matchedTerms,
+     baseScore
 RETURN e.name AS targetEnterprise,
        subTracks[0] AS subTrack,
        stages[0] AS targetStage,
        targetCapabilities[0..8] AS targetCapabilities,
        scenarios[0..5] AS scenarios,
        demands[0..5] AS demands,
+       industries[0..5] AS industries,
+       customers[0..5] AS customers,
+       suppliers[0..5] AS suppliers,
+       matchedTerms[0..8] AS matchedTerms,
        'industry_direction' AS opportunityType,
-       CASE WHEN any(term IN $queryTerms WHERE any(x IN scenarios WHERE x IS NOT NULL AND x CONTAINS term)) THEN 'high' ELSE 'medium' END AS confidence
+       CASE WHEN baseScore >= 45 OR size(matchedTerms) >= 3 THEN 'high' ELSE 'medium' END AS confidence,
+       baseScore + size(matchedTerms) * 5 AS matchScore
+ORDER BY matchScore DESC, size(matchedTerms) DESC, e.name
+LIMIT $limit
 """

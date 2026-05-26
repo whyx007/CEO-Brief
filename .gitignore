@@ -18,6 +18,7 @@ __pycache__/
 
 # Runtime data
 data/
+logs/
 mock/ceo-brief-today.json
 mock/tianta_ceo_target_updates.json
 mock/tianta_target_watchlist.json

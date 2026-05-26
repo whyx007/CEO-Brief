@@ -25,11 +25,11 @@ ORG_SUFFIX_PATTERN = re.compile(
 DIMENSION_DEFINITIONS: dict[str, dict[str, str]] = {
     'supply_to_external': {
         'externalRole': 'buyer',
-        'description': '被投企业向外部企业供应产品、设备、软件、服务或系统集成能力',
+        'description': '被投企业向目标公司供应产品、设备、软件、服务或系统集成能力',
     },
     'external_supply_to_portfolio': {
         'externalRole': 'supplier',
-        'description': '外部企业向被投企业提供材料、部件、平台、渠道或基础设施',
+        'description': '目标公司向被投企业提供材料、部件、平台、渠道或基础设施',
     },
     'joint_r_and_d': {
         'externalRole': 'partner',
@@ -41,7 +41,7 @@ DIMENSION_DEFINITIONS: dict[str, dict[str, str]] = {
     },
     'scenario_landing': {
         'externalRole': 'scenario_owner',
-        'description': '外部企业提供真实应用场景，被投企业提供可落地能力',
+        'description': '目标公司提供真实应用场景，被投企业提供可落地能力',
     },
     'factory_or_operation_support': {
         'externalRole': 'operator',
@@ -364,7 +364,7 @@ def _fallback_rule(company_name: str) -> dict[str, Any]:
         'markers': (),
         'industryDomains': ['待识别行业'],
         'subSectors': ['待识别细分赛道'],
-        'chainPosition': '外部企业/待识别',
+        'chainPosition': '目标公司/待识别',
         'coreProducts': terms[:3],
         'coreTechnologies': [],
         'productionProcesses': [],
@@ -419,7 +419,7 @@ def build_external_company_profile(company_name: str) -> dict[str, Any]:
         for mode, terms in (rule_copy.get('dimensions') or {}).items():
             if mode in dimension_terms:
                 dimension_terms[mode].extend(terms)
-    merged['chainPosition'] = ' / '.join(_unique_terms(chain_positions)) or '外部企业/待识别'
+    merged['chainPosition'] = ' / '.join(_unique_terms(chain_positions)) or '目标公司/待识别'
     for field in (
         'industryDomains', 'subSectors', 'coreProducts', 'coreTechnologies', 'productionProcesses',
         'upstreamNeeds', 'downstreamApplications', 'targetCustomers', 'painPoints',

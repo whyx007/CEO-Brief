@@ -283,22 +283,22 @@
                   <select id="industryChainMode" class="industry-chain-emphasis-select">
                     <option value="overview">产业链全景</option>
                     <option value="company-updown">产业链上下游</option>
-                    <option value="opportunities">合作机会探索</option>
+                    <option value="opportunities">产业链机会探索</option>
                   </select>
                 </label>
-                <label id="industryChainScopeWrap">
+                <label id="industryChainScopeWrap" class="industry-chain-scope-picker">
                   <span>探索类型</span>
                   <select id="industryChainScope" class="sort-select source-select">
-                    <option value="external_company">外部产业公司</option>
-                    <option value="technology_scope">技术范围相关</option>
-                    <option value="industry_direction">产业方向协同</option>
+                    <option value="external_company">公司合作探索</option>
+                    <option value="technology_scope">技术领域相关被投企业</option>
+                    <option value="industry_direction">融链延链探索</option>
                   </select>
                 </label>
                 <label id="industryChainKeywordWrap">
                   <span>目标公司</span>
                   <div class="industry-chain-target-input">
-                    <input type="text" id="industryChainInput" class="single-line-input" placeholder="输入企业名，例如：中科慧远视觉技术（洛阳）有限公司" />
-                    <button id="industryChainInputConfirmBtn" class="secondary" type="button">确认</button>
+                    <input type="text" id="industryChainInput" class="single-line-input" placeholder="输入目标公司" />
+                    <button id="industryChainInputConfirmBtn" class="secondary" type="button">探索机会</button>
                   </div>
                 </label>
               </div>
@@ -340,7 +340,7 @@
           <section id="industryChainOpportunitySection" class="grid hidden">
             <article class="panel industry-chain-opportunity-panel">
               <div class="panel-header">
-                <h3>合作机会探索</h3>
+                <h3 id="industryChainOpportunityTitle">公司合作探索</h3>
                 <span id="industryChainOpportunityCount" class="count-badge">0</span>
               </div>
               <div id="industryChainOpportunityResults" class="industry-chain-opportunity-results empty">暂无合作机会</div>
