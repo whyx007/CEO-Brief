@@ -26,6 +26,9 @@ mock/tianta_target_watchlist.json
 # Environment & secrets
 .env
 .env.*
+*.env-old
+*.env.backup
+*.env.local
 
 # System
 .DS_Store
