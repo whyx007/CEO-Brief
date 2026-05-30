@@ -341,7 +341,17 @@
             <article class="panel industry-chain-opportunity-panel">
               <div class="panel-header">
                 <h3 id="industryChainOpportunityTitle">公司合作探索</h3>
-                <span id="industryChainOpportunityCount" class="count-badge">0</span>
+                <div class="industry-chain-opportunity-tools">
+                  <span id="industryChainOpportunityCount" class="count-badge">0</span>
+                  <div id="industryChainExportControls" class="industry-chain-export-controls hidden">
+                    <select id="industryChainExportFormat" class="industry-chain-export-select" aria-label="选择导出格式">
+                      <option value="pdf">PDF</option>
+                      <option value="md">Markdown</option>
+                      <option value="doc">Word DOC</option>
+                    </select>
+                    <button id="industryChainExportBtn" class="secondary" type="button">导出报告</button>
+                  </div>
+                </div>
               </div>
               <div id="industryChainOpportunityResults" class="industry-chain-opportunity-results empty">暂无合作机会</div>
             </article>
@@ -350,10 +360,10 @@
           <section id="industryChainQuestionSection" class="grid">
             <article class="panel industry-chain-analysis-panel">
               <div class="panel-header">
-                <h3>分析问题</h3>
+                <h3>继续提问</h3>
               </div>
               <label id="industryChainQuestionWrap" class="industry-chain-question-field">
-                <input type="text" id="industryChainQuestion" class="single-line-input" placeholder="可选，例如：这些相邻企业里哪些最适合先撮合？" />
+                <input type="text" id="industryChainQuestion" class="single-line-input" placeholder="可以根据已经分析的结果继续提问" />
               </label>
               <div class="actions">
                 <button id="industryChainQuestionAnalyzeBtn" class="secondary">分析</button>

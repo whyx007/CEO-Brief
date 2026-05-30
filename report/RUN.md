@@ -39,6 +39,21 @@ D:\ProgramData\miniconda3\envs\ceo-brief-py310\python.exe -m uvicorn app:app --h
 powershell -ExecutionPolicy Bypass -File .\start-python.ps1
 ```
 
+## DeepSeek 用量持久化
+
+DeepSeek 当日余额快照和调用流水默认写入项目内 `data/`：
+
+- `data/deepseek-daily-usage.json`
+- `data/deepseek-usage-events.jsonl`
+
+普通页面刷新和服务重启不会清空这些文件。若使用 Docker 并且会删除/重建容器，需要把该目录挂载到宿主机，或设置 `DEEPSEEK_USAGE_DIR` 到一个持久目录，例如：
+
+```powershell
+docker run -p 8000:8000 -v ${PWD}\data:/home/ai/code/ceo-brief-deploy/data ceo-brief-deploy
+```
+
+Token 成本是辅助估算，可通过 `DEEPSEEK_INPUT_PRICE_CNY_PER_1M` 和 `DEEPSEEK_OUTPUT_PRICE_CNY_PER_1M` 调整；实际预算限制仍优先使用 DeepSeek 余额接口的当日余额差额。
+
 ## 停止服务
 
 ```powershell

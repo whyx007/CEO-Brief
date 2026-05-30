@@ -29,6 +29,8 @@ OVERVIEW_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 _overview_cache: dict[str, Any] = {'loadedAt': 0.0, 'rows': None}
 _analysis_jobs: dict[str, dict[str, Any]] = {}
 
+FOLLOWUP_SEARCH_LIMIT = 20
+
 
 def _limit(payload: dict[str, Any] | None = None, default: int = INDUSTRY_CHAIN_DEFAULT_LIMIT) -> int:
     raw = (payload or {}).get('limit', default)
@@ -223,6 +225,113 @@ def _analysis(mode: str, rows: list[dict[str, Any]], query: dict[str, Any], incl
     return analyze_with_llm(mode, rows, query)
 
 
+def _followup_search_terms(question: str, query: dict[str, Any]) -> list[str]:
+    terms: list[str] = []
+    terms.extend(_query_terms(question))
+    for marker, expansions in (
+        ('大模型', ['大模型', 'AI', '人工智能', '机器学习', '深度学习', '生成式AI', 'AIGC', '智能体']),
+        ('人工智能', ['人工智能', 'AI', '大模型', '机器学习', '深度学习']),
+        ('AI', ['AI', '人工智能', '大模型', '机器学习', '深度学习']),
+        ('机器人', ['机器人', '具身智能', '智能装备', '机器视觉', '运动控制']),
+        ('储能', ['储能', '电池', '能源管理', '新能源']),
+        ('算力', ['算力', '智算', '数据中心', '服务器', 'GPU']),
+    ):
+        if marker in question:
+            terms.extend(expansions)
+    keyword = str(query.get('keyword') or '').strip()
+    # 保留原始目标用于 LLM 语境，但补充召回优先围绕追问关键词扩展。
+    if keyword and any(term in question for term in ('合作', '客户', '供应', '场景')):
+        terms.append(keyword)
+    result: list[str] = []
+    for term in terms:
+        text = str(term or '').strip()
+        if len(text) >= 2 and text not in result:
+            result.append(text)
+    return result[:40]
+
+
+def _normalize_followup_rows(rows: list[dict[str, Any]], query: dict[str, Any], question: str) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    opportunity_mode = str(query.get('opportunityMode') or query.get('scopeType') or 'technology_scope')
+    for row in rows:
+        target = row.get('targetEnterprise') or row.get('sourceEnterprise') or ''
+        if not target:
+            continue
+        matched_terms = _as_list(row.get('matchedTerms'))
+        scene = row.get('cooperationScene') or f"追问补充召回：该企业命中“{question}”相关图谱标签"
+        normalized.append({
+            **row,
+            'queryObject': query.get('keyword') or '',
+            'sourceEnterprise': query.get('keyword') or row.get('sourceEnterprise') or '',
+            'investedEnterprise': target,
+            'targetEnterprise': target,
+            'opportunityType': row.get('opportunityType') or opportunity_mode,
+            'opportunityTypeLabel': {
+                'external_company': '追问补充召回',
+                'technology_scope': '技术能力匹配',
+                'industry_direction': '产业方向协同',
+            }.get(opportunity_mode, '追问补充召回'),
+            'cooperationScene': scene,
+            'cooperationLogic': f"{scene}。需结合原始目标、产品规格、客户重合度和商务意愿进一步核验。",
+            'evidence': list(dict.fromkeys([
+                *[f"图谱命中：{term}" for term in matched_terms[:6]],
+                *[f"能力匹配：{item}" for item in _as_list(row.get('targetCapabilities'))[:4]],
+                *[f"场景线索：{item}" for item in _as_list(row.get('scenarios'))[:3]],
+                *[f"行业线索：{item}" for item in _as_list(row.get('industries'))[:3]],
+            ])),
+            'followupSupplement': True,
+            'followupQuestion': question,
+        })
+    return normalized
+
+
+def _merge_opportunity_rows(base_rows: list[dict[str, Any]], extra_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in [*extra_rows, *base_rows]:
+        key = str(row.get('investedEnterprise') or row.get('targetEnterprise') or row.get('sourceEnterprise') or '').strip()
+        if not key or key in seen:
+            continue
+        merged.append(row)
+        seen.add(key)
+    return merged
+
+
+def _augment_opportunity_followup_rows(mode: str, rows: list[dict[str, Any]], query: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    question = str(query.get('question') or '').strip()
+    if mode != 'opportunities' or not question:
+        return rows, {'enabled': False}
+    terms = _followup_search_terms(question, query)
+    if not terms:
+        return rows, {'enabled': False, 'reason': 'no_followup_terms'}
+
+    opportunity_mode = str(query.get('opportunityMode') or query.get('scopeType') or 'technology_scope')
+    params = {
+        'scopeType': opportunity_mode,
+        'keyword': question,
+        'primaryTerms': terms[:12],
+        'anchorTerms': terms[:8],
+        'queryTerms': terms,
+        'candidateLimit': 120,
+        'limit': FOLLOWUP_SEARCH_LIMIT,
+    }
+    templates: list[str] = []
+    raw_rows: list[dict[str, Any]] = []
+    if opportunity_mode == 'industry_direction':
+        raw_rows = run_read_query(qt.OPPORTUNITIES_INDUSTRY_DIRECTION, params)
+        templates.append('opportunities_industry_direction_followup')
+    else:
+        raw_rows = run_read_query(qt.OPPORTUNITIES_TECHNOLOGY_SCOPE, params)
+        templates.append('opportunities_technology_scope_followup')
+    extra_rows = _normalize_followup_rows(raw_rows, query, question)
+    return _merge_opportunity_rows(rows, extra_rows), {
+        'enabled': True,
+        'terms': terms,
+        'addedRows': len(extra_rows),
+        'templates': templates,
+    }
+
+
 @router.post('/api/industry-chain/analyze-result')
 def industry_chain_analyze_result(payload: dict[str, Any]) -> dict[str, Any]:
     payload = payload or {}
@@ -245,6 +354,7 @@ def industry_chain_analyze_result(payload: dict[str, Any]) -> dict[str, Any]:
 def _run_analysis_job(job_id: str, mode: str, rows: list[dict[str, Any]], query: dict[str, Any]) -> None:
     _analysis_jobs[job_id] = {**_analysis_jobs[job_id], 'status': 'running', 'startedAt': time.time()}
     try:
+        rows, followup_meta = _augment_opportunity_followup_rows(mode, rows, query)
         answer, llm_meta = analyze_with_llm(mode, rows, query)
         _analysis_jobs[job_id] = {
             **_analysis_jobs[job_id],
@@ -255,7 +365,7 @@ def _run_analysis_job(job_id: str, mode: str, rows: list[dict[str, Any]], query:
                 'mode': mode,
                 'query': query,
                 'answer': answer,
-                'meta': {'llm': llm_meta},
+                'meta': {'llm': llm_meta, 'followupSearch': followup_meta},
             },
         }
     except Exception as exc:

@@ -130,6 +130,15 @@ function stripHtml(value) {
   return tmp.textContent || tmp.innerText || '';
 }
 
+function safeFileName(value) {
+  return String(value || 'report')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80) || 'report';
+}
+
 function cleanSourceName(value) {
   return String(value || '').replace(/^RSSHub\s+/i, '').trim() || '未知来源';
 }
@@ -482,7 +491,12 @@ function renderDeepSeekBudget(balance) {
     return;
   }
   if (metaEl) {
-    metaEl.textContent = balance?.limited ? '今日已达上限' : `今日已用 ${Math.round(percent)}%`;
+    const totalTokens = Number(balance?.totalTokens) || 0;
+    const requestCount = Number(balance?.requestCount) || 0;
+    const usageText = totalTokens > 0
+      ? ` · ${requestCount}次 · ${totalTokens.toLocaleString('zh-CN')} tokens`
+      : '';
+    metaEl.textContent = balance?.limited ? `今日已达上限${usageText}` : `今日已用 ${Math.round(percent)}%${usageText}`;
   }
 }
 
@@ -742,10 +756,19 @@ function currentIndustryChainMode() {
   return $('industryChainMode')?.value || state.industryChainMode || 'overview';
 }
 
+function currentIndustryChainScope() {
+  return $('industryChainScope')?.value || 'external_company';
+}
+
 function isIndustryChainResultCurrent(result, mode) {
   if (!result) return false;
   if (!result.mode) return mode === 'overview';
-  return result.mode === mode;
+  if (result.mode !== mode) return false;
+  if (mode === 'opportunities') {
+    const resultScope = result?.query?.opportunityMode || result?.query?.scopeType || 'external_company';
+    return resultScope === currentIndustryChainScope();
+  }
+  return true;
 }
 
 function resetIndustryChainNetwork() {
@@ -828,11 +851,7 @@ function syncIndustryChainControls() {
         : '全景模式无需输入目标公司';
   }
   if (questionInput) {
-    questionInput.placeholder = mode === 'overview'
-      ? '可选，例如：哪些环节暂未挂接企业？'
-      : mode === 'company-updown'
-        ? '可选，例如：这些相邻企业里哪些最适合先撮合？'
-        : '可选，例如：按合作优先级排序并说明依据';
+    questionInput.placeholder = '可以根据已经分析的结果继续提问';
   }
 }
 
@@ -899,7 +918,7 @@ async function runIndustryChainAnalysis(forceMode = '', questionOverride = '') {
       setIndustryChainRunStatus({
         running: true,
         startedAt: Date.now(),
-        message: `正在为“${keyword}”召回候选企业、排序证据并生成报告，通常需要 10-30 秒...`,
+        message: `正在为“${keyword}”召回候选企业、排序证据并生成报告，通常在 1 分钟以内...`,
       });
       result = await api('/api/industry-chain/opportunities', {
         method: 'POST',
@@ -1802,6 +1821,157 @@ function renderIndustryChainTables(tables) {
   }).join('');
 }
 
+function industryChainReportTitle(result) {
+  const mode = result?.mode || state.industryChainMode || 'overview';
+  const query = result?.query || {};
+  const target = query.keyword || query.enterpriseName || '';
+  if (target) return `${target}${industryChainModeLabel(mode)}报告`;
+  return `${industryChainModeLabel(mode)}报告`;
+}
+
+function markdownTableFromRows(columns, rows) {
+  const headers = Array.isArray(columns) ? columns : [];
+  const bodyRows = Array.isArray(rows) ? rows : [];
+  if (!headers.length) return '';
+  const normalize = (value) => String(value ?? '').replace(/\r?\n/g, ' ').replace(/\|/g, '/').trim();
+  const divider = headers.map(() => '---');
+  const lines = [
+    `| ${headers.map(normalize).join(' | ')} |`,
+    `| ${divider.join(' | ')} |`,
+    ...bodyRows.map((row) => `| ${headers.map((_, index) => normalize(Array.isArray(row) ? row[index] : '')).join(' | ')} |`),
+  ];
+  return lines.join('\n');
+}
+
+function industryChainResultToMarkdown(result) {
+  if (!result) return '';
+  const parts = [`# ${industryChainReportTitle(result)}`];
+
+  const answer = sanitizeIndustryChainReportText(result.answer || '', result);
+  if (answer) {
+    parts.push('', answer);
+  }
+
+  const opportunities = Array.isArray(result.opportunities) ? result.opportunities : [];
+  if (opportunities.length) {
+    parts.push('', '## 合作机会清单', '');
+    parts.push(markdownTableFromRows(
+      ['企业', '合作类型', '产业链/场景', '置信度', '建议'],
+      opportunities.map((item) => [
+        item.investedEnterprise || item.targetEnterprise || item.sourceEnterprise || '',
+        cleanOpportunityText(item.opportunityTypeLabel || item.matchedDimension || item.opportunityType || ''),
+        item.subTrack || item.scenario || item.targetStage || item.sourceStage || '',
+        item.confidence || '',
+        buildOpportunityOneLine(item),
+      ]),
+    ));
+  }
+
+  const tables = Array.isArray(result.tables) ? result.tables : [];
+  tables.forEach((table) => {
+    parts.push('', `## ${table.title || '结果明细'}`, '');
+    parts.push(markdownTableFromRows(table.columns, table.rows));
+  });
+
+  return parts.join('\n').replace(/\n{4,}/g, '\n\n\n').trim() + '\n';
+}
+
+function downloadTextFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function markdownToDocumentHtml(markdown, title) {
+  const tableBlocks = [];
+  const textWithTableTokens = String(markdown || '').replace(/((?:^\|.*\|\s*$\n?){2,})/gm, (block) => {
+    const token = `@@DOC_TABLE_${tableBlocks.length}@@`;
+    tableBlocks.push(renderMarkdownTable(block));
+    return token;
+  });
+  let body = escapeHtml(textWithTableTokens)
+    .replace(/^#\s+(.+)$/gm, '<h1>$1</h1>')
+    .replace(/^##\s+(.+)$/gm, '<h2>$1</h2>')
+    .replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
+    .replace(/^-\s+(.+)$/gm, '<li>$1</li>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  tableBlocks.forEach((tableHtml, index) => {
+    body = body.replace(`@@DOC_TABLE_${index}@@`, tableHtml);
+  });
+  body = `<p>${body}</p>`
+    .replace(/<p><h/g, '<h')
+    .replace(/<\/h([123])><\/p>/g, '</h$1>')
+    .replace(/<p><div class="industry-chain-table-wrap report-table-wrap">/g, '<div class="industry-chain-table-wrap report-table-wrap">')
+    .replace(/<\/div><\/p>/g, '</div>')
+    .replace(/<p><\/p>/g, '');
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #1f2937; line-height: 1.7; padding: 32px; }
+    h1 { font-size: 24px; margin: 0 0 18px; }
+    h2, h3 { font-size: 18px; margin: 24px 0 10px; }
+    h4 { font-size: 15px; margin: 18px 0 8px; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; }
+    th, td { border: 1px solid #d1d5db; padding: 7px 9px; vertical-align: top; }
+    th { background: #f3f4f6; text-align: left; }
+    .industry-chain-table-wrap { overflow: visible; }
+    p { margin: 0 0 10px; }
+    li { margin: 4px 0 4px 18px; }
+  </style>
+</head>
+<body>${body}</body>
+</html>`;
+}
+
+function exportIndustryChainPdf(title, html) {
+  const win = window.open('', '_blank', 'width=960,height=720');
+  if (!win) {
+    showMessage('浏览器阻止了导出窗口，请允许弹窗后重试。', 'error');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
+function exportIndustryChainReport() {
+  const mode = currentIndustryChainMode();
+  const result = isIndustryChainResultCurrent(state.industryChainResult, mode) ? state.industryChainResult : null;
+  if (!result) {
+    showMessage('暂无可导出的产业链报告，请先完成一次分析。', 'error');
+    return;
+  }
+  const format = $('industryChainExportFormat')?.value || 'pdf';
+  const title = industryChainReportTitle(result);
+  const basename = safeFileName(`${title}-${formatDateKey(new Date())}`);
+  const markdown = industryChainResultToMarkdown(result);
+  if (format === 'md') {
+    downloadTextFile(`${basename}.md`, markdown, 'text/markdown;charset=utf-8');
+    showMessage('Markdown 报告已导出。', 'success');
+    return;
+  }
+  const html = markdownToDocumentHtml(markdown, title);
+  if (format === 'doc') {
+    downloadTextFile(`${basename}.doc`, html, 'application/msword;charset=utf-8');
+    showMessage('Word DOC 报告已导出。', 'success');
+    return;
+  }
+  exportIndustryChainPdf(title, html);
+  showMessage('已打开 PDF 打印窗口，可选择保存为 PDF。', 'success');
+}
+
 function renderIndustryChainRelationTable(tables) {
   const table = Array.isArray(tables) ? tables[0] : null;
   if (!table) return '';
@@ -1863,6 +2033,10 @@ function renderIndustryChain(options = {}) {
 
   const rowCount = result?.meta?.rowCount ?? 0;
   setText('industryChainCount', String(rowCount || 0));
+  const exportControls = $('industryChainExportControls');
+  const exportBtn = $('industryChainExportBtn');
+  if (exportControls) exportControls.classList.toggle('hidden', !isOpportunityMode);
+  if (exportBtn) exportBtn.disabled = !isOpportunityMode || !result;
   const dashboardGrid = $('industryChainDashboard')?.closest('.grid');
   if (dashboardGrid) dashboardGrid.classList.toggle('hidden', isCompanyUpdownMode || isOpportunityMode);
   const graphPanel = document.querySelector('.industry-chain-graph-panel');
@@ -1883,7 +2057,7 @@ function renderIndustryChain(options = {}) {
   if (opportunitySection) opportunitySection.classList.toggle('hidden', !isOpportunityMode);
   const opportunityTitle = $('industryChainOpportunityTitle');
   if (opportunityTitle) {
-    const scope = result?.query?.opportunityMode || result?.query?.scopeType || $('industryChainScope')?.value || 'external_company';
+    const scope = result?.query?.opportunityMode || result?.query?.scopeType || currentIndustryChainScope();
     opportunityTitle.textContent = industryChainOpportunityScopeLabel(scope);
   }
   setText('industryChainOpportunityCount', String(result?.opportunities?.length || 0));
@@ -1899,6 +2073,11 @@ function renderIndustryChain(options = {}) {
     const html = loadingHtml || (isOpportunityMode && result ? renderOpportunityCards(result) : '');
     opportunityEl.className = html ? 'industry-chain-opportunity-results' : 'industry-chain-opportunity-results empty';
     opportunityEl.innerHTML = html || '暂无合作机会';
+  }
+  const questionAnswerEl = $('industryChainQuestionAnswer');
+  if (!result && questionAnswerEl) {
+    questionAnswerEl.className = 'industry-chain-question-answer hidden';
+    questionAnswerEl.innerHTML = '';
   }
   const dashboardEl = $('industryChainDashboard');
   if (dashboardEl) {
@@ -3020,6 +3199,7 @@ async function init() {
       showMessage(error?.message || '分析失败', 'error');
     });
   });
+  bindClick('industryChainExportBtn', '导出中...', () => exportIndustryChainReport());
   // 竞情分析已屏蔽
   // bindClick('competitiveAnalysisRefreshBtn', '读取中...', loadCompetitiveAnalysis);
   // bindClick('competitiveAnalysisGenerateBtn', '生成中...', generateCompetitiveAnalysis);
@@ -3076,6 +3256,7 @@ async function init() {
   if (industryChainScope) {
     industryChainScope.addEventListener('change', () => {
       syncIndustryChainControls();
+      scheduleIndustryChainRender({ skipNetwork: true });
     });
   }
 

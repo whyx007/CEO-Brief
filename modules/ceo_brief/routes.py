@@ -476,6 +476,11 @@ def llm_balance() -> dict[str, Any]:
             'date': usage.get('date'),
             'startedAt': usage.get('startedAt'),
             'updatedAt': usage.get('updatedAt'),
+            'requestCount': usage.get('requestCount', 0),
+            'promptTokens': usage.get('promptTokens', 0),
+            'completionTokens': usage.get('completionTokens', 0),
+            'totalTokens': usage.get('totalTokens', 0),
+            'estimatedCostCny': usage.get('estimatedCostCny', 0.0),
         }
     except Exception as exc:
         return {
