@@ -671,6 +671,35 @@ def _company_relation_lines(row: dict[str, Any], direction: str, limit: int = 12
 
 def build_rule_answer(mode: str, rows: list[dict[str, Any]], query: dict[str, Any] | None = None) -> str:
     query = query or {}
+    if mode == 'graph-qa':
+        question = str(query.get('question') or '图谱问题').strip()
+        if not rows:
+            return (
+                f'## 一、回答\n'
+                f'- 当前 Neo4j 图谱没有检索到能直接回答“{question}”的证据。\n\n'
+                '## 二、建议\n'
+                '- 可以换用更具体的企业名、技术词、产品词或客户场景继续提问。'
+            )
+        lines = [
+            f'## 一、回答\n- 围绕“{question}”，当前图谱召回 **{len(rows)}** 家相关企业。以下结论只基于已检索到的 Neo4j 证据。\n',
+            '## 二、证据企业\n',
+            '| 企业 | 命中词 | 图谱依据 |',
+            '|------|--------|----------|',
+        ]
+        for row in rows[:12]:
+            enterprise = row.get('targetEnterprise') or row.get('enterprise') or '-'
+            terms = _join(row.get('matchedTerms'), 6) or '名称/画像命中'
+            evidence = row.get('evidenceText') or _join(
+                _as_list(row.get('targetCapabilities')) + _as_list(row.get('products')) + _as_list(row.get('scenarios')),
+                8,
+            ) or '图谱字段命中'
+            lines.append(f'| **{enterprise}** | {terms} | {evidence} |')
+        lines.extend([
+            '',
+            '## 三、限制',
+            '- 以上是图谱检索结果，不代表已经完成商务合作、投资关系或客户事实确认；涉及合作可行性仍需进一步核验。',
+        ])
+        return '\n'.join(lines)
     if mode == 'overview':
         sub_tracks = {row.get('subTrack') for row in rows if row.get('subTrack')}
         empty_stages = [row.get('stage') for row in rows if row.get('stage') and not row.get('enterpriseCount')]
@@ -731,8 +760,11 @@ def analyze_with_llm(mode: str, rows: list[dict[str, Any]], query: dict[str, Any
     is_graph_fact_report = mode == 'opportunities' and opportunity_mode == 'graph_fact_discovery'
     is_technology_scope_report = mode == 'opportunities' and opportunity_mode == 'technology_scope' and bool(keyword)
     is_industry_direction_report = mode == 'opportunities' and opportunity_mode == 'industry_direction' and bool(keyword)
+    is_graph_qa_report = mode == 'graph-qa'
     if not client.enabled:
-        if is_graph_fact_report:
+        if is_graph_qa_report:
+            answer = build_rule_answer(mode, rows, query)
+        elif is_graph_fact_report:
             answer = _build_graph_fact_discovery_report(rows, query)
         elif is_technology_scope_report:
             answer = _build_technology_scope_report(rows, query)
@@ -742,7 +774,27 @@ def analyze_with_llm(mode: str, rows: list[dict[str, Any]], query: dict[str, Any
             answer = _build_external_company_report(rows, query) if is_target_company_report else build_rule_answer(mode, rows, query)
         return _strip_appended_opportunity_cards(answer), {'enabled': False, 'provider': 'deepseek'}
 
-    if is_graph_fact_report:
+    if is_graph_qa_report:
+        system_prompt = (
+            '你是基于 Neo4j 企业图谱的知识问答助手。'
+            '只能使用输入的 Neo4j 证据回答用户问题，不得编造不存在的企业、客户、关系、融资或合作事实。'
+            '每个结论必须能对应到证据中的企业、命中词或图谱依据；证据不足时明确写“当前图谱未发现直接证据”。'
+            '输出要简洁，优先直接回答问题，再列证据。'
+        )
+        user_prompt = (
+            f'用户问题：{query.get("question") or ""}\n'
+            f'检索词：{_compact(query.get("terms"), 1200)}\n'
+            f'Neo4j 证据：{_compact(rows, 6000)}\n\n'
+            '请用 Markdown 输出，结构必须包含：\n'
+            '## 一、直接回答\n'
+            '用 2-5 条 bullet 直接回答问题。\n'
+            '## 二、证据列表\n'
+            '| 企业 | 命中依据 | 可支持的判断 |\n|------|----------|--------------|\n'
+            '优先覆盖输入证据中的前 12 家企业；不要加入输入之外的企业。\n'
+            '## 三、需核验事项\n'
+            '说明当前图谱没有覆盖或不能确认的部分。'
+        )
+    elif is_graph_fact_report:
         system_prompt = (
             '你是星擎智服的产业链与投后服务分析师。你正在撰写“Neo4j 被投企业图谱事实发现报告”。'
             '你只能使用输入的检索计划和 Neo4j 证据，不得新增图谱中不存在的企业。'
@@ -875,7 +927,9 @@ def analyze_with_llm(mode: str, rows: list[dict[str, Any]], query: dict[str, Any
             'model': result.get('model'),
         }
     except Exception as exc:
-        if is_graph_fact_report:
+        if is_graph_qa_report:
+            answer = build_rule_answer(mode, rows, query)
+        elif is_graph_fact_report:
             answer = _build_graph_fact_discovery_report(rows, query)
         elif is_technology_scope_report:
             answer = _build_technology_scope_report(rows, query)

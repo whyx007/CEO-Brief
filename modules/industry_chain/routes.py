@@ -18,6 +18,7 @@ from modules.industry_chain.services.graph_fact_discovery import (
     rank_fact_discovery_rows,
     should_use_graph_fact_discovery,
 )
+from modules.industry_chain.services.graph_qa import graph_qa_table, retrieve_graph_qa_evidence
 from modules.industry_chain.services.graph_serializer import add_edge, add_node, make_graph
 from modules.industry_chain.services.neo4j_client import run_read_query, verify_connectivity
 from modules.industry_chain.services.opportunity_ranker import rank_external_company_opportunities
@@ -537,6 +538,8 @@ def _suggestions(mode: str) -> list[str]:
         return ['这些相邻企业里哪些最适合先撮合？', '只看下游合作对象', '补充这家企业的关键能力']
     if mode == 'opportunities':
         return ['只看高置信合作机会', '按上下游协同强度排序', '把机会转成投后服务跟进清单']
+    if mode == 'graph-qa':
+        return ['哪些被投企业涉及大模型？', '隆基绿能可以和哪些被投企业合作？', '哪些企业服务过电力客户？']
     return []
 
 
@@ -968,4 +971,35 @@ def industry_chain_opportunities(payload: dict[str, Any]) -> dict[str, Any]:
             'llm': llm_meta,
         },
         'suggestedQuestions': _suggestions('opportunities'),
+    }
+
+
+@router.post('/api/industry-chain/graph-qa')
+def industry_chain_graph_qa(payload: dict[str, Any]) -> dict[str, Any]:
+    started = time.perf_counter()
+    payload = payload or {}
+    question = str(payload.get('question') or payload.get('keyword') or '').strip()
+    if not question:
+        raise HTTPException(status_code=400, detail='question_required')
+    limit = _limit(payload, default=30)
+    rows, retrieval_meta = retrieve_graph_qa_evidence(question, _query_terms, limit)
+    include_analysis = bool(payload.get('includeAnalysis', True))
+    query = {'question': question, 'terms': retrieval_meta.get('terms') or []}
+    answer, llm_meta = _analysis('graph-qa', rows, query, include_analysis)
+    return {
+        'ok': True,
+        'mode': 'graph-qa',
+        'query': query,
+        'answer': answer,
+        'tables': [graph_qa_table(rows)],
+        'rows': rows,
+        'meta': {
+            'rowCount': len(rows),
+            'elapsedMs': round((time.perf_counter() - started) * 1000),
+            'templates': retrieval_meta.get('templates') or [],
+            'terms': retrieval_meta.get('terms') or [],
+            'intent': retrieval_meta.get('intent') or '',
+            'llm': llm_meta,
+        },
+        'suggestedQuestions': _suggestions('graph-qa'),
     }

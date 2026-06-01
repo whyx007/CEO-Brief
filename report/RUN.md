@@ -5,7 +5,8 @@
 当前项目以后端 **Python 3.10 + FastAPI** 为准。
 
 - 主入口：`app.py`
-- 默认地址：`http://127.0.0.1:8000`
+- 物理机默认地址：`http://127.0.0.1:8001`
+- Docker 默认地址：`http://127.0.0.1:8000`
 - 前端页面由 FastAPI 直接挂载，访问根路径 `/` 即可打开
 
 > 说明：旧的 JS MVP 后端已移除，后续联调与优化请统一以 Python / FastAPI 版本为准。
@@ -30,7 +31,7 @@ D:\ProgramData\miniconda3\envs\ceo-brief-py310\python.exe -m pip install -r requ
 ## 启动服务
 
 ```powershell
-D:\ProgramData\miniconda3\envs\ceo-brief-py310\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
+D:\ProgramData\miniconda3\envs\ceo-brief-py310\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8001
 ```
 
 或直接使用脚本：

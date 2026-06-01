@@ -87,9 +87,15 @@ select option {
   align-items: end;
   justify-content: start;
 }
+.industry-chain-controls.graph-qa-mode {
+  grid-template-columns: 180px minmax(520px, 920px);
+}
 #industryChainKeywordWrap {
   min-width: 0;
   max-width: 520px;
+}
+.industry-chain-controls.graph-qa-mode #industryChainKeywordWrap {
+  max-width: 920px;
 }
 .industry-chain-panel .panel-header {
   align-items: flex-start;
@@ -2307,6 +2313,9 @@ label span {
   .fx-grid { grid-template-columns: 1fr 1fr; }
   .reader-list-grid { column-width: 220px; }
   .industry-chain-controls {
+    grid-template-columns: 1fr;
+  }
+  .industry-chain-controls.graph-qa-mode {
     grid-template-columns: 1fr;
   }
   .industry-chain-opportunity-tools {

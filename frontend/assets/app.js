@@ -13,6 +13,8 @@ const state = {
   industryChainStatus: null,
   industryChainResult: null,
   industryChainMode: 'overview',
+  industryChainScope: 'external_company',
+  industryChainInputValues: {},
   industryChainSelectedTrackId: '',
   industryChainExpandedStages: new Set(),
   industryChainExpandedTracks: new Set(),
@@ -61,6 +63,11 @@ const bindClick = (id, loadingText, fn) => {
   if (!el) return;
   el.addEventListener('click', setLoading(el, loadingText, fn));
 };
+const bindDynamicLoadingClick = (id, loadingTextFn, fn) => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('click', setLoading(el, loadingTextFn, fn));
+};
 
 function showMessage(text, type = 'success') {
   const el = $('globalMessage');
@@ -106,13 +113,13 @@ function installRuntimeDiagnostics() {
 function apiUrl(path) {
   if (!path || /^https?:\/\//i.test(path)) return path;
   const apiPath = path.startsWith('/') ? path : `/${path}`;
+  const configuredBase = String(window.__CEO_BRIEF_API_BASE__ || '').replace(/\/+$/, '');
+  if (configuredBase) return `${configuredBase}${apiPath}`;
   const protocol = window.location.protocol;
   const host = window.location.hostname || '127.0.0.1';
   const isBackendOrigin = protocol.startsWith('http') && ['8000', '8001'].includes(window.location.port);
-  if (protocol === 'file:' || !isBackendOrigin) {
-    return `http://${host}:8001${apiPath}`;
-  }
-  return apiPath;
+  if (isBackendOrigin) return apiPath;
+  return `http://${host}:8001${apiPath}`;
 }
 
 function escapeHtml(value) {
@@ -396,10 +403,16 @@ function renderReaderList(items, options = {}) {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(apiUrl(path), {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const url = apiUrl(path);
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+  } catch (error) {
+    throw new Error(`无法连接后端接口 ${url}：${error?.message || '网络请求失败'}`);
+  }
   const text = await res.text();
   let data = null;
   if (text) {
@@ -503,8 +516,9 @@ function renderDeepSeekBudget(balance) {
 function setLoading(button, loadingText, fn) {
   return async () => {
     const old = button.textContent;
+    const nextText = typeof loadingText === 'function' ? loadingText() : loadingText;
     button.disabled = true;
-    button.textContent = loadingText;
+    button.textContent = nextText;
     try {
       await fn();
     } catch (error) {
@@ -512,7 +526,10 @@ function setLoading(button, loadingText, fn) {
       throw error;
     } finally {
       button.disabled = false;
-      button.textContent = old;
+      syncIndustryChainControls();
+      if (button.isConnected && button.textContent === nextText) {
+        button.textContent = old;
+      }
     }
   };
 }
@@ -731,6 +748,7 @@ function industryChainModeLabel(mode) {
     overview: '产业链全景',
     'company-updown': '产业链上下游',
     opportunities: '产业链机会探索',
+    'graph-qa': '图谱知识问答',
   }[mode] || mode;
 }
 
@@ -757,7 +775,23 @@ function currentIndustryChainMode() {
 }
 
 function currentIndustryChainScope() {
-  return $('industryChainScope')?.value || 'external_company';
+  return $('industryChainScope')?.value || state.industryChainScope || 'external_company';
+}
+
+function industryChainInputKey(mode = currentIndustryChainMode(), scope = currentIndustryChainScope()) {
+  return mode === 'opportunities' ? `${mode}:${scope || 'external_company'}` : mode;
+}
+
+function rememberIndustryChainInput(mode = currentIndustryChainMode(), scope = currentIndustryChainScope()) {
+  const input = $('industryChainInput');
+  if (!input) return;
+  state.industryChainInputValues[industryChainInputKey(mode, scope)] = input.value || '';
+}
+
+function restoreIndustryChainInput(mode = currentIndustryChainMode(), scope = currentIndustryChainScope()) {
+  const input = $('industryChainInput');
+  if (!input) return;
+  input.value = state.industryChainInputValues[industryChainInputKey(mode, scope)] || '';
 }
 
 function isIndustryChainResultCurrent(result, mode) {
@@ -820,17 +854,23 @@ function syncIndustryChainControls() {
   const scopeWrap = $('industryChainScopeWrap');
   const scopeSelect = $('industryChainScope');
   const keywordLabel = keywordWrap?.querySelector('span');
+  const confirmBtn = $('industryChainInputConfirmBtn');
+  const controls = document.querySelector('.industry-chain-controls');
+  if (controls) controls.classList.toggle('graph-qa-mode', mode === 'graph-qa');
   if (scopeWrap) scopeWrap.style.display = mode === 'opportunities' ? 'block' : 'none';
   if (keywordWrap) keywordWrap.style.display = mode === 'overview' ? 'none' : 'grid';
-  if (questionWrap) questionWrap.style.display = mode === 'overview' ? 'none' : 'grid';
-  if (questionSection) questionSection.classList.toggle('hidden', mode === 'overview');
+  if (questionWrap) questionWrap.style.display = mode === 'overview' || mode === 'graph-qa' ? 'none' : 'grid';
+  if (questionSection) questionSection.classList.toggle('hidden', mode === 'overview' || mode === 'graph-qa');
   if (scopeSelect && mode === 'opportunities' && !['external_company', 'technology_scope', 'industry_direction'].includes(scopeSelect.value)) {
     scopeSelect.value = 'external_company';
   }
   const scopeValue = scopeSelect?.value || 'external_company';
+  state.industryChainScope = scopeValue;
   setText('industryChainOpportunityTitle', industryChainOpportunityScopeLabel(scopeValue));
   if (keywordLabel) {
-    keywordLabel.textContent = mode === 'opportunities'
+    keywordLabel.textContent = mode === 'graph-qa'
+      ? '问题'
+      : mode === 'opportunities'
       ? ({
         external_company: '目标公司',
         technology_scope: '目标技术领域',
@@ -840,7 +880,9 @@ function syncIndustryChainControls() {
   }
   if (input) {
     input.disabled = mode === 'overview';
-    input.placeholder = mode === 'company-updown'
+    input.placeholder = mode === 'graph-qa'
+      ? '输入图谱问题，例如：哪些被投企业涉及大模型？'
+      : mode === 'company-updown'
       ? '输入企业名，例如：中科慧远视觉技术（洛阳）有限公司'
       : mode === 'opportunities'
         ? {
@@ -849,6 +891,15 @@ function syncIndustryChainControls() {
           industry_direction: '输入目标产业领域，例如：新型电力系统、智能电网、数据中心',
         }[scopeValue] || '输入目标公司 / 技术领域 / 产业领域'
         : '全景模式无需输入目标公司';
+  }
+  if (confirmBtn) {
+    confirmBtn.textContent = mode === 'graph-qa'
+      ? '提问'
+      : mode === 'company-updown'
+        ? '查询'
+        : mode === 'opportunities'
+          ? '探索机会'
+          : '加载全景';
   }
   if (questionInput) {
     questionInput.placeholder = '可以根据已经分析的结果继续提问';
@@ -923,6 +974,21 @@ async function runIndustryChainAnalysis(forceMode = '', questionOverride = '') {
       result = await api('/api/industry-chain/opportunities', {
         method: 'POST',
         body: JSON.stringify({ scopeType, opportunityMode, keyword, question, includeAnalysis: true, limit: 30 }),
+      });
+    } else if (effectiveMode === 'graph-qa') {
+      const graphQuestion = String($('industryChainInput')?.value || '').trim();
+      if (!graphQuestion) {
+        showMessage('请输入图谱问题', 'error');
+        return;
+      }
+      setIndustryChainRunStatus({
+        running: true,
+        startedAt: Date.now(),
+        message: '正在检索 Neo4j 图谱并生成回答，通常在 1 分钟以内...',
+      });
+      result = await api('/api/industry-chain/graph-qa', {
+        method: 'POST',
+        body: JSON.stringify({ question: graphQuestion, includeAnalysis: true, limit: 30 }),
       });
     } else {
       showMessage(`暂不支持的产业链分析模式：${effectiveMode}`, 'error');
@@ -1517,6 +1583,7 @@ function _asArray(value) {
 function renderIndustryChainDashboard(result) {
   if (!result) return '<div class="empty">暂无图表</div>';
   const mode = result.mode || state.industryChainMode;
+  if (mode === 'graph-qa') return '<div class="empty">图谱知识问答不显示图表总览</div>';
   const stats = industryChainStats(result);
   const opportunities = Array.isArray(result.opportunities) ? result.opportunities : [];
   const inventoryEnterpriseCount = Number(state.companyQueryStatus?.rowCount) || state.companyBrowseItems.length || 0;
@@ -1824,6 +1891,7 @@ function renderIndustryChainTables(tables) {
 function industryChainReportTitle(result) {
   const mode = result?.mode || state.industryChainMode || 'overview';
   const query = result?.query || {};
+  if (mode === 'graph-qa') return '图谱知识问答报告';
   const target = query.keyword || query.enterpriseName || '';
   if (target) return `${target}${industryChainModeLabel(mode)}报告`;
   return `${industryChainModeLabel(mode)}报告`;
@@ -2012,6 +2080,7 @@ function renderIndustryChain(options = {}) {
   const result = isIndustryChainResultCurrent(state.industryChainResult, mode) ? state.industryChainResult : null;
   const isCompanyUpdownMode = mode === 'company-updown';
   const isOpportunityMode = mode === 'opportunities';
+  const isGraphQaMode = mode === 'graph-qa';
   const runStatus = state.industryChainRunStatus;
   const statusEl = $('industryChainStatusText');
   if (statusEl) {
@@ -2038,20 +2107,22 @@ function renderIndustryChain(options = {}) {
   if (exportControls) exportControls.classList.toggle('hidden', !isOpportunityMode);
   if (exportBtn) exportBtn.disabled = !isOpportunityMode || !result;
   const dashboardGrid = $('industryChainDashboard')?.closest('.grid');
-  if (dashboardGrid) dashboardGrid.classList.toggle('hidden', isCompanyUpdownMode || isOpportunityMode);
+  if (dashboardGrid) dashboardGrid.classList.toggle('hidden', isCompanyUpdownMode || isOpportunityMode || isGraphQaMode);
   const graphPanel = document.querySelector('.industry-chain-graph-panel');
   if (graphPanel) {
-    graphPanel.classList.toggle('hidden', isOpportunityMode);
+    graphPanel.classList.toggle('hidden', isOpportunityMode || isGraphQaMode);
     const graphTitle = graphPanel.querySelector('.panel-header h3');
     const trackPicker = graphPanel.querySelector('.industry-chain-track-picker');
     if (graphTitle) graphTitle.textContent = isCompanyUpdownMode ? '关系图谱' : '产业链树状图';
     if (trackPicker) trackPicker.classList.toggle('hidden', mode !== 'overview');
   }
   const networkPanel = document.querySelector('.industry-chain-network-panel');
-  if (networkPanel) networkPanel.classList.toggle('hidden', isCompanyUpdownMode || isOpportunityMode);
+  if (networkPanel) networkPanel.classList.toggle('hidden', isCompanyUpdownMode || isOpportunityMode || isGraphQaMode);
   const answerPanel = $('industryChainAnswerPanel');
   if (answerPanel) {
-    answerPanel.style.display = mode === 'overview' || isOpportunityMode ? 'none' : '';
+    answerPanel.style.display = (mode === 'overview' && !runStatus?.running) || isOpportunityMode ? 'none' : '';
+    const answerTitle = answerPanel.querySelector('.panel-header h3');
+    if (answerTitle) answerTitle.textContent = isGraphQaMode ? '图谱回答' : '上下游关系';
   }
   const opportunitySection = $('industryChainOpportunitySection');
   if (opportunitySection) opportunitySection.classList.toggle('hidden', !isOpportunityMode);
@@ -2074,6 +2145,10 @@ function renderIndustryChain(options = {}) {
     opportunityEl.className = html ? 'industry-chain-opportunity-results' : 'industry-chain-opportunity-results empty';
     opportunityEl.innerHTML = html || '暂无合作机会';
   }
+  if (isGraphQaMode) {
+    resetIndustryChainNetwork();
+    state.industryChainNetworkRequested = false;
+  }
   const questionAnswerEl = $('industryChainQuestionAnswer');
   if (!result && questionAnswerEl) {
     questionAnswerEl.className = 'industry-chain-question-answer hidden';
@@ -2093,18 +2168,29 @@ function renderIndustryChain(options = {}) {
   }
   const relationEl = $('industryChainRelationSummary');
   if (relationEl) {
-    const relationHtml = result?.tables?.length ? renderIndustryChainRelationTable(result.tables) : '';
+    const graphQaLoadingHtml = isGraphQaMode && runStatus?.running
+      ? `<div class="industry-chain-loading-state">
+          <b>正在检索图谱</b>
+          <span>${escapeHtml(runStatus.message || '正在检索 Neo4j 图谱并生成回答...')}</span>
+          <small>页面仍在等待后端响应，完成后会自动刷新结果。</small>
+        </div>`
+      : '';
+    const relationHtml = graphQaLoadingHtml || (
+      isGraphQaMode
+        ? (result ? `<div class="industry-chain-report">${renderIndustryChainReport(result.answer || '', result)}</div>${renderIndustryChainTables(result.tables)}` : '')
+        : (result?.tables?.length ? renderIndustryChainRelationTable(result.tables) : '')
+    );
     relationEl.className = relationHtml ? 'industry-chain-answer' : 'industry-chain-answer empty';
-    relationEl.innerHTML = relationHtml || '暂无上下游关系';
+    relationEl.innerHTML = relationHtml || (isGraphQaMode ? '暂无图谱问答结果' : '暂无上下游关系');
   }
   const graphEl = $('industryChainGraph');
   if (graphEl) {
-    if (isOpportunityMode) {
+    if (isOpportunityMode || isGraphQaMode) {
       resetIndustryChainNetwork();
       state.industryChainNetworkRequested = false;
       graphEl.className = 'industry-chain-graph empty compact-empty';
-      graphEl.innerHTML = '合作机会探索不显示图谱';
-      renderIndustryNetworkPlaceholder('合作机会探索不显示产业链图谱');
+      graphEl.innerHTML = isGraphQaMode ? '图谱知识问答不显示图谱' : '合作机会探索不显示图谱';
+      renderIndustryNetworkPlaceholder(isGraphQaMode ? '图谱知识问答不显示产业链图谱' : '合作机会探索不显示产业链图谱');
     } else if (isCompanyUpdownMode) {
       resetIndustryChainNetwork();
       state.industryChainNetworkRequested = false;
@@ -3193,7 +3279,13 @@ async function init() {
   bindClick('testRssBtn', '测试中...', testRssFeeds);
   bindClick('companyQueryStatusBtn', '读取中...', loadCompanyQueryStatus);
   bindClick('companyQuerySearchBtn', '查询中...', () => runCompanyQuerySearch());
-  bindClick('industryChainInputConfirmBtn', '确认中...', () => runIndustryChainAnalysis());
+  bindDynamicLoadingClick('industryChainInputConfirmBtn', () => {
+    const mode = currentIndustryChainMode();
+    if (mode === 'graph-qa') return '提问中...';
+    if (mode === 'company-updown') return '查询中...';
+    if (mode === 'opportunities') return '探索中...';
+    return '加载中...';
+  }, () => runIndustryChainAnalysis());
   bindClick('industryChainQuestionAnalyzeBtn', '分析中...', () => {
     runIndustryChainQuestionAnalysis().catch((error) => {
       showMessage(error?.message || '分析失败', 'error');
@@ -3229,12 +3321,16 @@ async function init() {
   const industryChainMode = $('industryChainMode');
   if (industryChainMode) {
     industryChainMode.addEventListener('change', () => {
+      const previousMode = state.industryChainMode || 'overview';
+      const previousScope = state.industryChainScope || currentIndustryChainScope();
+      rememberIndustryChainInput(previousMode, previousScope);
       state.industryChainMode = industryChainMode.value || 'overview';
       state.industryChainExpandedStages.clear();
       state.industryChainExpandedTracks.clear();
       state.industryChainAllExpanded = false;
       state.industryChainNetworkRequested = false;
       syncIndustryChainControls();
+      restoreIndustryChainInput(state.industryChainMode, state.industryChainScope);
       scheduleIndustryChainRender();
       if (state.industryChainMode === 'overview') {
         scheduleIndustryChainAnalysis('overview');
@@ -3255,7 +3351,11 @@ async function init() {
   const industryChainScope = $('industryChainScope');
   if (industryChainScope) {
     industryChainScope.addEventListener('change', () => {
+      const previousScope = state.industryChainScope || 'external_company';
+      rememberIndustryChainInput('opportunities', previousScope);
+      state.industryChainScope = industryChainScope.value || 'external_company';
       syncIndustryChainControls();
+      restoreIndustryChainInput('opportunities', state.industryChainScope);
       scheduleIndustryChainRender({ skipNetwork: true });
     });
   }

@@ -32,7 +32,7 @@ D:\ProgramData\miniconda3\envs\ceo-brief-py310\python.exe -m pip install -r requ
 ## 启动服务
 
 ```powershell
-D:\ProgramData\miniconda3\envs\ceo-brief-py310\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
+D:\ProgramData\miniconda3\envs\ceo-brief-py310\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8001
 ```
 
 或使用脚本：

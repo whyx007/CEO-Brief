@@ -466,6 +466,342 @@ RETURN e.name AS targetEnterprise,
 LIMIT $candidateLimit
 """
 
+GRAPH_QA_ENTERPRISE_PROFILE = """
+MATCH (e:Enterprise)
+WHERE any(term IN $terms WHERE e.name CONTAINS term OR term CONTAINS e.name)
+WITH e
+ORDER BY size(e.name) DESC
+LIMIT $limit
+CALL (e) {
+  OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+  RETURN collect(DISTINCT s.name) AS subTracks
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
+  RETURN collect(DISTINCT st.name) AS stages
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
+  RETURN collect(DISTINCT k.name) AS keyCapabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
+  RETURN collect(DISTINCT cap.name) AS capabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
+  RETURN collect(DISTINCT product.name) AS products
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
+  RETURN collect(DISTINCT scenario.name) AS scenarios
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
+  RETURN collect(DISTINCT demand.name) AS demands
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+  RETURN collect(DISTINCT industry.name) AS industries
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+  RETURN collect(DISTINCT customer.name) AS customers
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
+  RETURN collect(DISTINCT supplier.name) AS suppliers
+}
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers,
+     subTracks + stages + keyCapabilities + capabilities + products + scenarios + demands + industries + customers + suppliers AS allTags
+RETURN e.name AS targetEnterprise,
+       subTracks[0..8] AS subTracks,
+       stages[0..8] AS stages,
+       keyCapabilities[0..10] AS keyCapabilities,
+       capabilities[0..10] AS capabilities,
+       products[0..10] AS products,
+       customers[0..10] AS customers,
+       scenarios[0..10] AS scenarios,
+       industries[0..10] AS industries,
+       demands[0..8] AS demands,
+       suppliers[0..8] AS suppliers,
+       [term IN $terms WHERE e.name CONTAINS term OR term CONTAINS e.name OR any(tag IN allTags WHERE tag IS NOT NULL AND (tag CONTAINS term OR term CONTAINS tag))][0..12] AS matchedTerms,
+       ['企业名称/画像'] AS matchedFields,
+       'enterprise_profile' AS evidenceType,
+       80 + size([term IN $terms WHERE e.name CONTAINS term OR term CONTAINS e.name]) * 10 AS matchScore
+ORDER BY matchScore DESC, targetEnterprise
+"""
+
+GRAPH_QA_TAG_RELATED_ENTERPRISES = """
+CALL () {
+  MATCH (e:Enterprise)
+  WHERE any(term IN $terms WHERE e.name CONTAINS term OR term CONTAINS e.name)
+  RETURN e, 80 AS baseScore, ['企业名称'] AS baseFields
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[r:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT]->(tag)
+  WHERE tag.name IS NOT NULL AND any(term IN $terms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 70 AS baseScore, collect(DISTINCT type(r))[0..4] AS baseFields
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[r:APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY]->(tag)
+  WHERE tag.name IS NOT NULL AND any(term IN $terms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 58 AS baseScore, collect(DISTINCT type(r))[0..4] AS baseFields
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[r:FOCUSES_ON_SUB_TRACK|LOCATED_IN_STAGE]->(tag)
+  WHERE tag.name IS NOT NULL AND any(term IN $terms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 48 AS baseScore, collect(DISTINCT type(r))[0..4] AS baseFields
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[r:HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+  WHERE tag.name IS NOT NULL AND any(term IN $terms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 42 AS baseScore, collect(DISTINCT type(r))[0..4] AS baseFields
+  LIMIT $candidateLimit
+}
+WITH e, max(baseScore) AS baseScore, collect(baseFields) AS fieldGroups
+ORDER BY baseScore DESC, e.name
+LIMIT $candidateLimit
+CALL (e) {
+  OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+  RETURN collect(DISTINCT s.name) AS subTracks
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
+  RETURN collect(DISTINCT st.name) AS stages
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
+  RETURN collect(DISTINCT k.name) AS keyCapabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
+  RETURN collect(DISTINCT cap.name) AS capabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
+  RETURN collect(DISTINCT product.name) AS products
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
+  RETURN collect(DISTINCT scenario.name) AS scenarios
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
+  RETURN collect(DISTINCT demand.name) AS demands
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+  RETURN collect(DISTINCT industry.name) AS industries
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+  RETURN collect(DISTINCT customer.name) AS customers
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
+  RETURN collect(DISTINCT supplier.name) AS suppliers
+}
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers, baseScore, fieldGroups,
+     subTracks + stages + keyCapabilities + capabilities + products + scenarios + demands + industries + customers + suppliers AS allTags
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers, baseScore, fieldGroups,
+     [term IN $terms WHERE e.name CONTAINS term OR term CONTAINS e.name OR any(tag IN allTags WHERE tag IS NOT NULL AND (tag CONTAINS term OR term CONTAINS tag))] AS matchedTerms
+WHERE size(matchedTerms) > 0
+RETURN e.name AS targetEnterprise,
+       subTracks[0..8] AS subTracks,
+       stages[0..8] AS stages,
+       keyCapabilities[0..10] AS keyCapabilities,
+       capabilities[0..10] AS capabilities,
+       products[0..10] AS products,
+       customers[0..10] AS customers,
+       scenarios[0..10] AS scenarios,
+       industries[0..10] AS industries,
+       demands[0..8] AS demands,
+       suppliers[0..8] AS suppliers,
+       matchedTerms[0..12] AS matchedTerms,
+       reduce(fields = [], group IN fieldGroups | fields + group)[0..8] AS matchedFields,
+       'tag_related_enterprise' AS evidenceType,
+       baseScore + size(matchedTerms) * 5 AS matchScore
+ORDER BY matchScore DESC, size(matchedTerms) DESC, targetEnterprise
+LIMIT $limit
+"""
+
+GRAPH_QA_COOPERATION_CANDIDATES = """
+CALL () {
+  MATCH (target:Enterprise)
+  WHERE any(term IN $terms WHERE target.name CONTAINS term OR term CONTAINS target.name)
+  CALL (target) {
+    OPTIONAL MATCH (target)-[:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT|APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY|FOCUSES_ON_SUB_TRACK|LOCATED_IN_STAGE|HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+    RETURN collect(DISTINCT tag.name)[0..60] AS targetTags
+  }
+  WITH target, [tag IN targetTags WHERE tag IS NOT NULL] AS targetTags
+  MATCH (e:Enterprise)
+  WHERE e <> target
+    AND EXISTS {
+      MATCH (e)-[:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT|APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY|FOCUSES_ON_SUB_TRACK|LOCATED_IN_STAGE|HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+      WHERE tag.name IS NOT NULL
+        AND any(targetTag IN targetTags WHERE tag.name CONTAINS targetTag OR targetTag CONTAINS tag.name)
+    }
+  RETURN e, 72 AS baseScore, ['目标企业画像相似/互补'] AS baseFields
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[r:HAS_KEY_CAPABILITY|HAS_CAPABILITY|PROVIDES_PRODUCT|APPLIES_TO_SCENARIO|HAS_DEMAND|SERVES_INDUSTRY|FOCUSES_ON_SUB_TRACK|LOCATED_IN_STAGE|HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+  WHERE tag.name IS NOT NULL AND any(term IN $terms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e,
+         CASE
+           WHEN type(r) IN ['HAS_KEY_CAPABILITY', 'HAS_CAPABILITY', 'PROVIDES_PRODUCT'] THEN 68
+           WHEN type(r) IN ['APPLIES_TO_SCENARIO', 'HAS_DEMAND', 'SERVES_INDUSTRY'] THEN 58
+           ELSE 48
+         END AS baseScore,
+         collect(DISTINCT type(r))[0..4] AS baseFields
+  LIMIT $candidateLimit
+}
+WITH e, max(baseScore) AS baseScore, collect(baseFields) AS fieldGroups
+ORDER BY baseScore DESC, e.name
+LIMIT $candidateLimit
+CALL (e) {
+  OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+  RETURN collect(DISTINCT s.name) AS subTracks
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
+  RETURN collect(DISTINCT st.name) AS stages
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
+  RETURN collect(DISTINCT k.name) AS keyCapabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
+  RETURN collect(DISTINCT cap.name) AS capabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
+  RETURN collect(DISTINCT product.name) AS products
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
+  RETURN collect(DISTINCT scenario.name) AS scenarios
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
+  RETURN collect(DISTINCT demand.name) AS demands
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+  RETURN collect(DISTINCT industry.name) AS industries
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+  RETURN collect(DISTINCT customer.name) AS customers
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
+  RETURN collect(DISTINCT supplier.name) AS suppliers
+}
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers, baseScore, fieldGroups,
+     subTracks + stages + keyCapabilities + capabilities + products + scenarios + demands + industries + customers + suppliers AS allTags
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers, baseScore, fieldGroups,
+     [term IN $terms WHERE e.name CONTAINS term OR term CONTAINS e.name OR any(tag IN allTags WHERE tag IS NOT NULL AND (tag CONTAINS term OR term CONTAINS tag))] AS matchedTerms
+RETURN e.name AS targetEnterprise,
+       subTracks[0..8] AS subTracks,
+       stages[0..8] AS stages,
+       keyCapabilities[0..10] AS keyCapabilities,
+       capabilities[0..10] AS capabilities,
+       products[0..10] AS products,
+       customers[0..10] AS customers,
+       scenarios[0..10] AS scenarios,
+       industries[0..10] AS industries,
+       demands[0..8] AS demands,
+       suppliers[0..8] AS suppliers,
+       matchedTerms[0..12] AS matchedTerms,
+       reduce(fields = [], group IN fieldGroups | fields + group)[0..8] AS matchedFields,
+       'cooperation_candidate' AS evidenceType,
+       baseScore + size(matchedTerms) * 5 AS matchScore
+ORDER BY matchScore DESC, size(matchedTerms) DESC, targetEnterprise
+LIMIT $limit
+"""
+
+GRAPH_QA_CUSTOMER_SUPPLY_EVIDENCE = """
+CALL () {
+  MATCH (e:Enterprise)-[r:HAS_CUSTOMER|HAS_SUPPLIER]->(tag)
+  WHERE tag.name IS NOT NULL AND any(term IN $terms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 86 AS baseScore, collect(DISTINCT type(r))[0..4] AS baseFields
+  LIMIT $candidateLimit
+UNION
+  MATCH (e:Enterprise)-[r:APPLIES_TO_SCENARIO|SERVES_INDUSTRY|HAS_DEMAND]->(tag)
+  WHERE tag.name IS NOT NULL AND any(term IN $terms WHERE tag.name CONTAINS term OR term CONTAINS tag.name)
+  RETURN e, 64 AS baseScore, collect(DISTINCT type(r))[0..4] AS baseFields
+  LIMIT $candidateLimit
+}
+WITH e, max(baseScore) AS baseScore, collect(baseFields) AS fieldGroups
+ORDER BY baseScore DESC, e.name
+LIMIT $candidateLimit
+CALL (e) {
+  OPTIONAL MATCH (e)-[:FOCUSES_ON_SUB_TRACK]->(s:SubTrack)
+  RETURN collect(DISTINCT s.name) AS subTracks
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:LOCATED_IN_STAGE]->(st:ChainStage)
+  RETURN collect(DISTINCT st.name) AS stages
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_KEY_CAPABILITY]->(k:KeyCapability)
+  RETURN collect(DISTINCT k.name) AS keyCapabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CAPABILITY]->(cap:Capability)
+  RETURN collect(DISTINCT cap.name) AS capabilities
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:PROVIDES_PRODUCT]->(product:Product)
+  RETURN collect(DISTINCT product.name) AS products
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:APPLIES_TO_SCENARIO]->(scenario:Scenario)
+  RETURN collect(DISTINCT scenario.name) AS scenarios
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_DEMAND]->(demand:DemandTag)
+  RETURN collect(DISTINCT demand.name) AS demands
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:SERVES_INDUSTRY]->(industry:Industry)
+  RETURN collect(DISTINCT industry.name) AS industries
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_CUSTOMER]->(customer:Customer)
+  RETURN collect(DISTINCT customer.name) AS customers
+}
+CALL (e) {
+  OPTIONAL MATCH (e)-[:HAS_SUPPLIER]->(supplier:Supplier)
+  RETURN collect(DISTINCT supplier.name) AS suppliers
+}
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers, baseScore, fieldGroups,
+     customers + suppliers AS directEvidence,
+     subTracks + stages + keyCapabilities + capabilities + products + scenarios + demands + industries + customers + suppliers AS allTags
+WITH e, subTracks, stages, keyCapabilities, capabilities, products, scenarios, demands, industries, customers, suppliers, baseScore, fieldGroups,
+     [term IN $terms WHERE any(tag IN directEvidence WHERE tag IS NOT NULL AND (tag CONTAINS term OR term CONTAINS tag))] AS directMatchedTerms,
+     [term IN $terms WHERE any(tag IN allTags WHERE tag IS NOT NULL AND (tag CONTAINS term OR term CONTAINS tag))] AS allMatchedTerms
+RETURN e.name AS targetEnterprise,
+       subTracks[0..8] AS subTracks,
+       stages[0..8] AS stages,
+       keyCapabilities[0..10] AS keyCapabilities,
+       capabilities[0..10] AS capabilities,
+       products[0..10] AS products,
+       customers[0..10] AS customers,
+       scenarios[0..10] AS scenarios,
+       industries[0..10] AS industries,
+       demands[0..8] AS demands,
+       suppliers[0..8] AS suppliers,
+       (directMatchedTerms + allMatchedTerms)[0..12] AS matchedTerms,
+       reduce(fields = [], group IN fieldGroups | fields + group)[0..8] AS matchedFields,
+       'customer_supply_evidence' AS evidenceType,
+       baseScore + size(directMatchedTerms) * 12 + size(allMatchedTerms) * 4 AS matchScore
+ORDER BY matchScore DESC, size(directMatchedTerms) DESC, targetEnterprise
+LIMIT $limit
+"""
+
 OPPORTUNITIES_TECHNOLOGY_SCOPE = """
 CALL () {
   MATCH (e:Enterprise)
